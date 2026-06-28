@@ -225,13 +225,13 @@ export default function App() {
           />
 
           <Metric
-            title="EMA20"
-            value={analysis.market_summary.ema20}
+            title="EMA9"
+            value={analysis.market_summary.ema9}
           />
 
           <Metric
-            title="EMA50"
-            value={analysis.market_summary.ema50}
+            title="EMA20"
+            value={analysis.market_summary.ema20}
           />
 
           <Metric
