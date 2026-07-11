@@ -28,8 +28,13 @@ const TIMEFRAMES = [
 
 export default function App() {
   const [products, setProducts] = useState([]);
-  const [symbol, setSymbol] = useState("BTCUSD");
-  const [timeframe, setTimeframe] = useState("5m");
+  const [symbol, setSymbol] = useState(
+  localStorage.getItem("selectedSymbol") || "BTCUSD"
+);
+
+  const [timeframe, setTimeframe] = useState(
+  localStorage.getItem("selectedTimeframe") || "5m"
+);
   const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -100,6 +105,14 @@ export default function App() {
 
   const isBuy =
     decision.action === "BUY";
+
+    useEffect(() => {
+  localStorage.setItem("selectedSymbol", symbol);
+}, [symbol]);
+
+useEffect(() => {
+  localStorage.setItem("selectedTimeframe", timeframe);
+}, [timeframe]);
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
