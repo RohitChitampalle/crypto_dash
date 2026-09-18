@@ -79,38 +79,38 @@ const themeStyles = `
   }
 
   /* =====================================================
-     DARK MODE
+     DAY MODE
   ===================================================== */
 
-  .crypto-app.theme-dark {
-    --bg-primary: #080d16;
-    --bg-secondary: #0d1421;
-    --bg-card: #111a29;
-    --bg-card-hover: #162235;
-    --bg-input: #0c1523;
+  .crypto-app.theme-day {
+    --bg-primary: #f6f8fb;
+    --bg-secondary: #ffffff;
+    --bg-card: #ffffff;
+    --bg-card-hover: #f1f5f9;
+    --bg-input: #f8fafc;
 
-    --border: #243247;
-    --border-light: #2d3b51;
+    --border: #e2e8f0;
+    --border-light: #cbd5e1;
 
-    --text-primary: #f8fafc;
-    --text-secondary: #cbd5e1;
-    --text-muted: #94a3b8;
-    --text-dim: #64748b;
+    --text-primary: #0f172a;
+    --text-secondary: #334155;
+    --text-muted: #64748b;
+    --text-dim: #94a3b8;
 
-    --accent: #38bdf8;
-    --accent-soft: rgba(56, 189, 248, 0.12);
+    --accent: #0284c7;
+    --accent-soft: rgba(2, 132, 199, 0.10);
 
-    --green: #22c55e;
-    --green-soft: rgba(34, 197, 94, 0.12);
+    --green: #16a34a;
+    --green-soft: rgba(22, 163, 74, 0.10);
 
-    --red: #ef4444;
-    --red-soft: rgba(239, 68, 68, 0.12);
+    --red: #dc2626;
+    --red-soft: rgba(220, 38, 38, 0.10);
 
-    --yellow: #f59e0b;
-    --yellow-soft: rgba(245, 158, 11, 0.12);
+    --yellow: #d97706;
+    --yellow-soft: rgba(217, 119, 6, 0.10);
 
-    --purple: #a78bfa;
-    --purple-soft: rgba(167, 139, 250, 0.12);
+    --purple: #7c3aed;
+    --purple-soft: rgba(124, 58, 237, 0.10);
 
     background: var(--bg-primary);
     color: var(--text-primary);
@@ -330,6 +330,140 @@ const themeStyles = `
     box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.15);
   }
 
+
+
+  /* =====================================================
+     DAY MODE LOGIN
+  ===================================================== */
+
+  .crypto-app.theme-day .login-page {
+    background:
+      radial-gradient(circle at 15% 15%, rgba(2, 132, 199, 0.10), transparent 32%),
+      radial-gradient(circle at 85% 80%, rgba(124, 58, 237, 0.08), transparent 30%),
+      #f6f8fb;
+  }
+
+  .crypto-app.theme-day .login-card {
+    background: rgba(255, 255, 255, 0.97);
+    border: 1px solid #dbe4ee;
+    box-shadow:
+      0 24px 70px rgba(15, 23, 42, 0.12),
+      0 4px 16px rgba(15, 23, 42, 0.05);
+  }
+
+  .crypto-app.theme-day .login-brand-icon {
+    background: linear-gradient(135deg, #0284c7, #2563eb);
+    color: #fff;
+    box-shadow: 0 10px 24px rgba(2, 132, 199, 0.22);
+  }
+
+  .crypto-app.theme-day .login-title {
+    color: #0f172a;
+  }
+
+  .crypto-app.theme-day .login-subtitle {
+    color: #64748b;
+  }
+
+  .crypto-app.theme-day .login-label {
+    color: #334155;
+  }
+
+  .crypto-app.theme-day .login-input-wrap {
+    background: #f8fafc;
+    border: 1px solid #dbe4ee;
+  }
+
+  .crypto-app.theme-day .login-input-wrap:focus-within {
+    border-color: #0284c7;
+    box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.10);
+    background: #fff;
+  }
+
+  .crypto-app.theme-day .login-input {
+    color: #0f172a;
+  }
+
+  .crypto-app.theme-day .login-input::placeholder {
+    color: #94a3b8;
+  }
+
+  .crypto-app.theme-day .login-input-icon {
+    color: #64748b;
+  }
+
+  .crypto-app.theme-day .login-submit {
+    background: linear-gradient(135deg, #0284c7, #2563eb);
+    color: #fff;
+    box-shadow: 0 10px 22px rgba(37, 99, 235, 0.20);
+  }
+
+  .crypto-app.theme-day .login-submit:hover {
+    box-shadow: 0 14px 28px rgba(37, 99, 235, 0.26);
+    transform: translateY(-1px);
+  }
+
+  .crypto-app.theme-day .login-security {
+    color: #64748b;
+    background: #f8fafc;
+    border-color: #e2e8f0;
+  }
+
+  .crypto-app.theme-day .login-security svg {
+    color: #16a34a;
+  }
+
+  .crypto-app.theme-day .login-footer {
+    color: #94a3b8;
+    border-top-color: #e2e8f0;
+  }
+
+  /* =====================================================
+     AI TREND MARKET CHART
+  ===================================================== */
+
+  .ai-chart-grid {
+    stroke: var(--border);
+    stroke-width: 1;
+    stroke-dasharray: 4 5;
+  }
+
+  .ai-chart-line {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .ai-chart-area {
+    fill: var(--accent-soft);
+  }
+
+  .ai-chart-label {
+    fill: var(--text-muted);
+    font-size: 12px;
+  }
+
+  .ai-chart-value {
+    fill: var(--text-primary);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .ai-chart-level {
+    stroke: var(--text-muted);
+    stroke-width: 1.5;
+    stroke-dasharray: 7 5;
+    opacity: 0.8;
+  }
+
+  .ai-chart-point {
+    fill: var(--bg-card);
+    stroke: var(--accent);
+    stroke-width: 3;
+  }
+
   /* =====================================================
      SCROLLBAR
   ===================================================== */
@@ -379,12 +513,12 @@ function ThemeSwitcher({ theme, setTheme }) {
       <button
         type="button"
         className={`theme-button ${
-          theme === "dark" ? "active" : ""
+          theme === "day" ? "active" : ""
         }`}
-        onClick={() => setTheme("dark")}
+        onClick={() => setTheme("day")}
       >
         <Sun size={14} />
-        Dark
+        Day
       </button>
 
       <button
@@ -449,7 +583,7 @@ function LoginPage({ onLogin, theme, setTheme }) {
       <style>{themeStyles}</style>
 
       <div className={`crypto-app min-h-screen login-background ${
-        theme === "night" ? "theme-night" : "theme-dark"
+        theme === "night" ? "theme-night" : "theme-day"
       }`}>
         <div className="login-grid" />
 
@@ -617,7 +751,7 @@ function MetricCard({
         </div>
       </div>
 
-      <div className="text-2xl font-bold theme-text">
+      <div className="login-title text-2xl font-bold theme-text">
         {value}
       </div>
 
@@ -639,7 +773,7 @@ function LevelRow({ label, value, icon }) {
     <div className="flex items-center justify-between border-b theme-border py-3 last:border-0">
       <div className="flex items-center gap-2">
         {icon}
-        <span className="text-sm theme-muted">
+        <span className="login-subtitle text-sm theme-muted">
           {label}
         </span>
       </div>
@@ -738,6 +872,406 @@ function MoveBar({
   );
 }
 
+
+/* =========================================================
+   AI TREND MARKET CHART
+========================================================= */
+
+function AITrendMarketChart({
+  currentPrice,
+  ema9,
+  ema20,
+  support,
+  resistance,
+  action,
+  trend,
+}) {
+  const price = Number(currentPrice);
+  const fastEma = Number(ema9);
+  const slowEma = Number(ema20);
+  const supportValue = Number(support);
+  const resistanceValue = Number(resistance);
+
+  const values = [
+    price,
+    fastEma,
+    slowEma,
+    supportValue,
+    resistanceValue,
+  ].filter((value) => Number.isFinite(value));
+
+  if (!values.length) {
+    return null;
+  }
+
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+
+  const difference = maxValue - minValue;
+  const padding =
+    difference > 0
+      ? difference * 0.12
+      : Math.max(Math.abs(maxValue) * 0.001, 1);
+
+  const chartMin = minValue - padding;
+  const chartMax = maxValue + padding;
+
+  const width = 900;
+  const height = 320;
+  const left = 70;
+  const right = 30;
+  const top = 30;
+  const bottom = 50;
+
+  const plotWidth = width - left - right;
+  const plotHeight = height - top - bottom;
+
+  const getY = (value) => {
+    if (chartMax === chartMin) {
+      return height / 2;
+    }
+
+    return (
+      top +
+      ((chartMax - value) /
+        (chartMax - chartMin)) *
+        plotHeight
+    );
+  };
+
+  const chartPoints = [];
+
+  if (Number.isFinite(slowEma)) {
+    chartPoints.push({
+      label: "EMA20",
+      value: slowEma,
+    });
+  }
+
+  if (Number.isFinite(fastEma)) {
+    chartPoints.push({
+      label: "EMA9",
+      value: fastEma,
+    });
+  }
+
+  if (Number.isFinite(price)) {
+    chartPoints.push({
+      label: "Current Price",
+      value: price,
+    });
+  }
+
+  const pointCoords = chartPoints.map(
+    (point, index) => {
+      const x =
+        chartPoints.length === 1
+          ? left + plotWidth / 2
+          : left +
+            (plotWidth /
+              (chartPoints.length - 1)) *
+              index;
+
+      return {
+        ...point,
+        x,
+        y: getY(point.value),
+      };
+    }
+  );
+
+  const linePath = pointCoords
+    .map(
+      (point, index) =>
+        `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`
+    )
+    .join(" ");
+
+  const areaPath =
+    pointCoords.length >= 2
+      ? `${linePath}
+         L ${pointCoords[pointCoords.length - 1].x} ${
+          top + plotHeight
+        }
+         L ${pointCoords[0].x} ${
+          top + plotHeight
+        }
+         Z`
+      : "";
+
+  const gridValues = Array.from(
+    { length: 5 },
+    (_, index) =>
+      chartMax -
+      ((chartMax - chartMin) / 4) *
+        index
+  );
+
+  const normalizedTrend = String(
+    trend || ""
+  ).toLowerCase();
+
+  const bullish =
+    action === "BUY" ||
+    normalizedTrend.includes("bull");
+
+  const bearish =
+    action === "SELL" ||
+    normalizedTrend.includes("bear");
+
+  const direction = bullish
+    ? "Bullish"
+    : bearish
+    ? "Bearish"
+    : "Neutral";
+
+  const directionClass = bullish
+    ? "text-green-400"
+    : bearish
+    ? "text-red-400"
+    : "text-yellow-400";
+
+  const formatPrice = (value) => {
+    if (!Number.isFinite(value)) {
+      return "--";
+    }
+
+    return Number(value).toLocaleString(
+      undefined,
+      {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }
+    );
+  };
+
+  return (
+    <div className="theme-card mb-6 overflow-hidden rounded-2xl">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b theme-border px-5 py-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/10 text-sky-400">
+            <Brain size={16} />
+          </div>
+
+          <div>
+            <h2 className="text-sm font-semibold theme-text">
+              AI Trend Market Chart
+            </h2>
+
+            <div className="mt-0.5 text-[11px] theme-muted">
+              EMA trend and current market structure
+            </div>
+          </div>
+        </div>
+
+        <div
+          className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${
+            bullish
+              ? "bg-green-500/10 text-green-400"
+              : bearish
+              ? "bg-red-500/10 text-red-400"
+              : "bg-yellow-500/10 text-yellow-400"
+          }`}
+        >
+          {bullish ? (
+            <TrendingUp size={15} />
+          ) : bearish ? (
+            <TrendingDown size={15} />
+          ) : (
+            <Activity size={15} />
+          )}
+
+          AI TREND: {direction.toUpperCase()}
+        </div>
+      </div>
+
+      <div className="p-4 sm:p-5">
+        <div className="w-full overflow-x-auto rounded-xl border theme-border bg-[var(--bg-input)] p-2">
+          <svg
+            viewBox={`0 0 ${width} ${height}`}
+            className="h-[300px] w-full min-w-[680px]"
+            role="img"
+            aria-label="AI Trend Market Chart"
+          >
+            {gridValues.map(
+              (value, index) => {
+                const y = getY(value);
+
+                return (
+                  <g key={`grid-${index}`}>
+                    <line
+                      x1={left}
+                      x2={width - right}
+                      y1={y}
+                      y2={y}
+                      className="ai-chart-grid"
+                    />
+
+                    <text
+                      x={left - 10}
+                      y={y + 4}
+                      textAnchor="end"
+                      className="ai-chart-label"
+                    >
+                      {formatPrice(value)}
+                    </text>
+                  </g>
+                );
+              }
+            )}
+
+            {Number.isFinite(
+              resistanceValue
+            ) && (
+              <g>
+                <line
+                  x1={left}
+                  x2={width - right}
+                  y1={getY(resistanceValue)}
+                  y2={getY(resistanceValue)}
+                  className="ai-chart-level"
+                />
+
+                <text
+                  x={width - right}
+                  y={
+                    getY(resistanceValue) - 8
+                  }
+                  textAnchor="end"
+                  className="ai-chart-label"
+                >
+                  Resistance{" "}
+                  {formatPrice(resistanceValue)}
+                </text>
+              </g>
+            )}
+
+            {Number.isFinite(
+              supportValue
+            ) && (
+              <g>
+                <line
+                  x1={left}
+                  x2={width - right}
+                  y1={getY(supportValue)}
+                  y2={getY(supportValue)}
+                  className="ai-chart-level"
+                />
+
+                <text
+                  x={width - right}
+                  y={getY(supportValue) + 18}
+                  textAnchor="end"
+                  className="ai-chart-label"
+                >
+                  Support{" "}
+                  {formatPrice(supportValue)}
+                </text>
+              </g>
+            )}
+
+            {areaPath && (
+              <path
+                d={areaPath}
+                className="ai-chart-area"
+              />
+            )}
+
+            {linePath && (
+              <path
+                d={linePath}
+                className="ai-chart-line"
+              />
+            )}
+
+            {pointCoords.map(
+              (point, index) => (
+                <g
+                  key={`point-${index}`}
+                >
+                  <circle
+                    cx={point.x}
+                    cy={point.y}
+                    r="6"
+                    className="ai-chart-point"
+                  />
+
+                  <text
+                    x={point.x}
+                    y={Math.max(
+                      point.y - 14,
+                      18
+                    )}
+                    textAnchor="middle"
+                    className="ai-chart-value"
+                  >
+                    {formatPrice(
+                      point.value
+                    )}
+                  </text>
+
+                  <text
+                    x={point.x}
+                    y={height - 15}
+                    textAnchor="middle"
+                    className="ai-chart-label"
+                  >
+                    {point.label}
+                  </text>
+                </g>
+              )
+            )}
+          </svg>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="rounded-xl border theme-border bg-[var(--bg-input)] p-3">
+            <div className="text-[10px] uppercase tracking-wider theme-muted">
+              EMA20
+            </div>
+            <div className="mt-1 font-bold theme-text">
+              {formatPrice(slowEma)}
+            </div>
+          </div>
+
+          <div className="rounded-xl border theme-border bg-[var(--bg-input)] p-3">
+            <div className="text-[10px] uppercase tracking-wider theme-muted">
+              EMA9
+            </div>
+            <div className="mt-1 font-bold theme-text">
+              {formatPrice(fastEma)}
+            </div>
+          </div>
+
+          <div className="rounded-xl border theme-border bg-[var(--bg-input)] p-3">
+            <div className="text-[10px] uppercase tracking-wider theme-muted">
+              Current Price
+            </div>
+            <div className="mt-1 font-bold text-sky-400">
+              {formatPrice(price)}
+            </div>
+          </div>
+
+          <div className="rounded-xl border theme-border bg-[var(--bg-input)] p-3">
+            <div className="text-[10px] uppercase tracking-wider theme-muted">
+              AI Direction
+            </div>
+            <div
+              className={`mt-1 font-bold ${directionClass}`}
+            >
+              {direction}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-3 text-center text-[11px] theme-dim">
+          Live market snapshot from the analysis API.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* =========================================================
    LOADING SCREEN
 ========================================================= */
@@ -748,7 +1282,7 @@ function LoadingScreen({ theme }) {
       className={`crypto-app min-h-screen flex items-center justify-center ${
         theme === "night"
           ? "theme-night"
-          : "theme-dark"
+          : "theme-day"
       } theme-bg`}
     >
       <style>{themeStyles}</style>
@@ -916,7 +1450,7 @@ function Dashboard({ onLogout, theme, setTheme }) {
       className={`crypto-app min-h-screen ${
         theme === "night"
           ? "theme-night"
-          : "theme-dark"
+          : "theme-day"
       } theme-bg`}
     >
       <style>{themeStyles}</style>
@@ -1304,6 +1838,20 @@ function Dashboard({ onLogout, theme, setTheme }) {
         </div>
 
         {/* =================================================
+            AI TREND MARKET CHART
+        ================================================= */}
+
+        <AITrendMarketChart
+          currentPrice={currentPrice}
+          ema9={ema9}
+          ema20={ema20}
+          support={marketStructure?.support}
+          resistance={marketStructure?.resistance}
+          action={action}
+          trend={trend}
+        />
+
+        {/* =================================================
             MARKET STRUCTURE + TRADE SETUP
         ================================================= */}
 
@@ -1564,7 +2112,7 @@ export default function App() {
 
   const [theme, setTheme] = useState(
     localStorage.getItem("cryptoTheme") ||
-      "dark"
+      "day"
   );
 
   useEffect(() => {
@@ -1581,12 +2129,12 @@ export default function App() {
     document.body.style.backgroundColor =
       theme === "night"
         ? "#02040a"
-        : "#080d16";
+        : "#f6f8fb";
 
     document.body.style.color =
       theme === "night"
         ? "#e8eef7"
-        : "#f8fafc";
+        : "#0f172a";
   }, [theme]);
 
   const handleLogout = () => {
