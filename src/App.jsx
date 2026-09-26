@@ -2,6 +2,10 @@ import React, { useEffect, useState } from "react";
 import Select from "react-select";
 import {
   Activity,
+  Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
+  GripVertical,
   ArrowDownRight,
   ArrowUpRight,
   BarChart3,
@@ -2098,6 +2102,200 @@ function Dashboard({ onLogout, theme, setTheme }) {
   );
 }
 
+
+
+const MARKET_SIDEBAR_CSS = `
+.market-sidebar {
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 1000;
+  background: var(--panel, #ffffff);
+  border-right: 1px solid var(--border, #dbe2ea);
+  box-shadow: 4px 0 18px rgba(15, 23, 42, 0.06);
+  transition: width 0.18s ease;
+  overflow: visible;
+}
+.market-sidebar.collapsed { width: 72px !important; }
+.market-sidebar-header {
+  height: 76px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--border, #dbe2ea);
+}
+.market-sidebar-title { font-size: 11px; font-weight: 800; letter-spacing: .12em; opacity: .55; }
+.market-sidebar-subtitle { font-size: 15px; font-weight: 800; margin-top: 3px; white-space: nowrap; }
+.market-sidebar-toggle {
+  border: 0; background: transparent; cursor: pointer; padding: 8px; border-radius: 9px;
+  color: inherit; display: grid; place-items: center;
+}
+.market-sidebar-toggle:hover { background: rgba(100,116,139,.10); }
+.market-sidebar-items { padding: 16px 10px; display: grid; gap: 8px; }
+.market-sidebar-item {
+  width: 100%; min-height: 52px; border: 0; border-radius: 12px; background: transparent;
+  color: inherit; display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+  cursor: pointer; text-align: left; font-size: 14px; font-weight: 700;
+}
+.market-sidebar-item:hover { background: rgba(100,116,139,.09); }
+.market-sidebar-item.active { background: #2563eb; color: #fff; box-shadow: 0 8px 18px rgba(37,99,235,.22); }
+.market-sidebar.collapsed .market-sidebar-item { justify-content: center; padding: 10px; }
+.market-sidebar-icon { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; flex: 0 0 auto; font-weight: 900; background: rgba(100,116,139,.12); }
+.market-sidebar-item.active .market-sidebar-icon { background: rgba(255,255,255,.18); }
+.market-sidebar-footer { position: absolute; left: 12px; right: 12px; bottom: 18px; display: flex; align-items: center; gap: 8px; font-size: 11px; opacity: .65; }
+.market-online-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 4px rgba(34,197,94,.12); }
+.market-sidebar-resizer { position: absolute; top: 0; right: -8px; width: 16px; height: 100%; cursor: col-resize; display: grid; place-items: center; opacity: 0; color: #64748b; }
+.market-sidebar:hover .market-sidebar-resizer { opacity: .55; }
+.market-content { margin-left: var(--market-sidebar-width, 280px); min-height: 100vh; }
+.market-placeholder { min-height: 100vh; padding: 48px; display: grid; place-items: center; background: var(--page-bg, #f6f8fb); }
+.market-placeholder-card { width: min(900px, 100%); border: 1px solid var(--border, #dbe2ea); border-radius: 22px; padding: 42px; background: var(--panel, #fff); box-shadow: 0 18px 50px rgba(15,23,42,.08); }
+.market-placeholder-icon { width: 58px; height: 58px; border-radius: 16px; display: grid; place-items: center; background: #2563eb; color: #fff; font-size: 28px; font-weight: 900; }
+.market-placeholder-card h1 { margin: 22px 0 8px; font-size: 30px; }
+.market-placeholder-card p { margin: 0; max-width: 680px; line-height: 1.6; opacity: .7; }
+.market-placeholder-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-top: 30px; }
+.market-placeholder-grid > div { padding: 18px; border: 1px solid var(--border, #dbe2ea); border-radius: 14px; }
+.market-placeholder-grid strong, .market-placeholder-grid span { display: block; }
+.market-placeholder-grid span { margin-top: 5px; font-size: 12px; opacity: .6; }
+@media (max-width: 768px) {
+  .market-sidebar { width: 280px !important; transform: translateX(0); }
+  .market-sidebar.collapsed { transform: translateX(-100%); width: 280px !important; }
+  .market-content { margin-left: 0 !important; }
+  .market-placeholder { padding: 20px; }
+  .market-placeholder-card { padding: 25px; }
+  .market-placeholder-grid { grid-template-columns: repeat(2,1fr); }
+}
+`;
+
+function MarketSidebarStyles() {
+  return <style>{MARKET_SIDEBAR_CSS}</style>;
+}
+
+/* =========================================================
+   MARKET ALGO SIDEBAR
+========================================================= */
+
+const MARKET_ALGOS = [
+  {
+    id: "crypto",
+    label: "Crypto Analysis Algo",
+    icon: "₿",
+  },
+  {
+    id: "indian",
+    label: "Indian Analysis Algo",
+    icon: "₹",
+  },
+];
+
+function IndianAnalysisDashboard({ onLogout, theme, setTheme }) {
+  return (
+    <div className="market-placeholder">
+      <div className="market-placeholder-card">
+        <div className="market-placeholder-icon">₹</div>
+        <h1>Indian Analysis Algo</h1>
+        <p>
+          Indian market analysis is selected. This section is ready to connect
+          to your Zerodha/Kite products, charts, and analysis APIs.
+        </p>
+        <div className="market-placeholder-grid">
+          <div><strong>NSE</strong><span>Indices & Equity</span></div>
+          <div><strong>BSE</strong><span>Indices & Equity</span></div>
+          <div><strong>NFO</strong><span>Futures & Options</span></div>
+          <div><strong>MCX</strong><span>Commodity</span></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MarketSidebar({ selectedMarket, setSelectedMarket, theme, width, setWidth, collapsed, setCollapsed }) {
+  const resizing = React.useRef(false);
+
+  React.useEffect(() => {
+    const onMove = (e) => {
+      if (!resizing.current || collapsed) return;
+      const next = Math.min(420, Math.max(220, e.clientX));
+      setWidth(next);
+    };
+
+    const onUp = () => {
+      if (resizing.current) {
+        resizing.current = false;
+        document.body.style.userSelect = "";
+        document.body.style.cursor = "";
+      }
+    };
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [collapsed, setWidth]);
+
+  return (
+    <aside
+      className={`market-sidebar ${collapsed ? "collapsed" : ""}`}
+      style={{ width: collapsed ? 72 : width }}
+    >
+      <div className="market-sidebar-header">
+        {!collapsed && (
+          <div>
+            <div className="market-sidebar-title">MARKETS</div>
+            <div className="market-sidebar-subtitle">Analysis Algorithms</div>
+          </div>
+        )}
+        <button
+          className="market-sidebar-toggle"
+          onClick={() => setCollapsed((v) => !v)}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {collapsed ? <PanelLeftOpen size={20} /> : <PanelLeftClose size={20} />}
+        </button>
+      </div>
+
+      <div className="market-sidebar-items">
+        {MARKET_ALGOS.map((algo) => (
+          <button
+            key={algo.id}
+            className={`market-sidebar-item ${selectedMarket === algo.id ? "active" : ""}`}
+            onClick={() => setSelectedMarket(algo.id)}
+            title={collapsed ? algo.label : undefined}
+          >
+            <span className="market-sidebar-icon">{algo.icon}</span>
+            {!collapsed && <span>{algo.label}</span>}
+          </button>
+        ))}
+      </div>
+
+      {!collapsed && (
+        <div className="market-sidebar-footer">
+          <span className="market-online-dot" />
+          <span>Analysis system online</span>
+        </div>
+      )}
+
+      {!collapsed && (
+        <div
+          className="market-sidebar-resizer"
+          onMouseDown={() => {
+            resizing.current = true;
+            document.body.style.userSelect = "none";
+            document.body.style.cursor = "col-resize";
+          }}
+          title="Drag to resize"
+        >
+          <GripVertical size={16} />
+        </div>
+      )}
+    </aside>
+  );
+}
+
 /* =========================================================
    MAIN APP
 ========================================================= */
@@ -2105,43 +2303,44 @@ function Dashboard({ onLogout, theme, setTheme }) {
 export default function App() {
   const [authenticated, setAuthenticated] =
     useState(
-      sessionStorage.getItem(
-        "cryptoAuthenticated"
-      ) === "true"
+      sessionStorage.getItem("cryptoAuthenticated") === "true"
     );
 
   const [theme, setTheme] = useState(
-    localStorage.getItem("cryptoTheme") ||
-      "day"
+    localStorage.getItem("cryptoTheme") || "day"
+  );
+
+  const [selectedMarket, setSelectedMarket] = useState(
+    localStorage.getItem("selectedMarketAlgo") || "crypto"
+  );
+  const [sidebarWidth, setSidebarWidth] = useState(
+    Number(localStorage.getItem("marketSidebarWidth")) || 280
+  );
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    localStorage.getItem("marketSidebarCollapsed") === "true"
   );
 
   useEffect(() => {
-    localStorage.setItem(
-      "cryptoTheme",
-      theme
-    );
-
-    document.documentElement.setAttribute(
-      "data-theme",
-      theme
-    );
-
-    document.body.style.backgroundColor =
-      theme === "night"
-        ? "#02040a"
-        : "#f6f8fb";
-
-    document.body.style.color =
-      theme === "night"
-        ? "#e8eef7"
-        : "#0f172a";
+    localStorage.setItem("cryptoTheme", theme);
+    document.documentElement.setAttribute("data-theme", theme);
+    document.body.style.backgroundColor = theme === "night" ? "#02040a" : "#f6f8fb";
+    document.body.style.color = theme === "night" ? "#e8eef7" : "#0f172a";
   }, [theme]);
 
-  const handleLogout = () => {
-    sessionStorage.removeItem(
-      "cryptoAuthenticated"
-    );
+  useEffect(() => {
+    localStorage.setItem("selectedMarketAlgo", selectedMarket);
+  }, [selectedMarket]);
 
+  useEffect(() => {
+    localStorage.setItem("marketSidebarWidth", String(sidebarWidth));
+  }, [sidebarWidth]);
+
+  useEffect(() => {
+    localStorage.setItem("marketSidebarCollapsed", String(sidebarCollapsed));
+  }, [sidebarCollapsed]);
+
+  const handleLogout = () => {
+    sessionStorage.removeItem("cryptoAuthenticated");
     setAuthenticated(false);
   };
 
@@ -2156,11 +2355,38 @@ export default function App() {
   }
 
   return (
-    <Dashboard
-      onLogout={handleLogout}
-      theme={theme}
-      setTheme={setTheme}
-    />
+    <>
+      <MarketSidebarStyles />
+      <MarketSidebar
+        selectedMarket={selectedMarket}
+        setSelectedMarket={setSelectedMarket}
+        theme={theme}
+        width={sidebarWidth}
+        setWidth={setSidebarWidth}
+        collapsed={sidebarCollapsed}
+        setCollapsed={setSidebarCollapsed}
+      />
+      <main
+        className="market-content"
+        style={{
+          marginLeft: sidebarCollapsed ? 72 : sidebarWidth,
+          transition: "margin-left 0.18s ease",
+        }}
+      >
+        {selectedMarket === "crypto" ? (
+          <Dashboard
+            onLogout={handleLogout}
+            theme={theme}
+            setTheme={setTheme}
+          />
+        ) : (
+          <IndianAnalysisDashboard
+            onLogout={handleLogout}
+            theme={theme}
+            setTheme={setTheme}
+          />
+        )}
+      </main>
+    </>
   );
 }
-
