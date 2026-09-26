@@ -2191,25 +2191,230 @@ const MARKET_ALGOS = [
 ];
 
 function IndianAnalysisDashboard({ onLogout, theme, setTheme }) {
+  const [exchange, setExchange] = useState(localStorage.getItem("kiteExchange") || "NSE");
+  const [category, setCategory] = useState(localStorage.getItem("kiteCategory") || "ALL");
+  const [search, setSearch] = useState("");
+  const [products, setProducts] = useState([]);
+  const [selectedProduct, setSelectedProduct] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("kiteSelectedProduct") || "null"); } catch { return null; }
+  });
+  const [interval, setIntervalValue] = useState(localStorage.getItem("kiteInterval") || "5minute");
+  const [chart, setChart] = useState([]);
+  const [profile, setProfile] = useState(null);
+  const [connected, setConnected] = useState(false);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [loadingChart, setLoadingChart] = useState(false);
+  const [error, setError] = useState("");
+  const [lastUpdated, setLastUpdated] = useState(null);
+
+  const isNight = theme === "night";
+  const text = isNight ? "#e8eef7" : "#0f172a";
+  const muted = isNight ? "#94a3b8" : "#64748b";
+  const card = isNight ? "#0b1220" : "#ffffff";
+  const border = isNight ? "#1e293b" : "#e2e8f0";
+  const input = isNight ? "#0f172a" : "#f8fafc";
+
+  const normalizeProducts = (payload) => {
+    const raw = payload?.data?.products || payload?.data?.items || payload?.data || payload?.products || [];
+    return Array.isArray(raw) ? raw : [];
+  };
+
+  const normalizeChart = (payload) => {
+    const raw = payload?.data?.candles || payload?.data?.chart || payload?.data || payload?.candles || [];
+    return Array.isArray(raw) ? raw.map((c) => ({
+      timestamp: c.timestamp || c.date || c.time,
+      open: Number(c.open), high: Number(c.high), low: Number(c.low), close: Number(c.close),
+      volume: Number(c.volume || 0), oi: Number(c.oi || 0)
+    })).filter(c => Number.isFinite(c.close)) : [];
+  };
+
+  const loadProfile = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/kite/profile`);
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error || "Zerodha is not connected");
+      setProfile(json.data || null);
+      setConnected(true);
+      setError("");
+    } catch (e) {
+      setConnected(false);
+      setProfile(null);
+      setError(e.message || "Unable to connect to Zerodha");
+    }
+  };
+
+  const loadProducts = async () => {
+    setLoadingProducts(true);
+    setError("");
+    try {
+      const params = new URLSearchParams({ exchange, category, page: "1", limit: "500" });
+      if (search.trim()) params.set("search", search.trim());
+      const res = await fetch(`${API_BASE}/api/kite/products?${params.toString()}`);
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error || "Unable to load products");
+      const list = normalizeProducts(json);
+      setProducts(list);
+      if (selectedProduct) {
+        const stillExists = list.some(p => p.tradingsymbol === selectedProduct.tradingsymbol && p.exchange === selectedProduct.exchange);
+        if (!stillExists && list.length) setSelectedProduct(list[0]);
+      } else if (list.length) {
+        const nifty = list.find(p => p.tradingsymbol === "NIFTY 50");
+        setSelectedProduct(nifty || list[0]);
+      }
+    } catch (e) {
+      setProducts([]);
+      setError(e.message || "Unable to load Indian market products");
+    } finally { setLoadingProducts(false); }
+  };
+
+  const loadChart = async (product = selectedProduct) => {
+    if (!product?.tradingsymbol) return;
+    setLoadingChart(true);
+    setError("");
+    try {
+      const params = new URLSearchParams({
+        exchange: product.exchange || exchange,
+        symbol: product.tradingsymbol,
+        interval
+      });
+      const res = await fetch(`${API_BASE}/api/kite/chart?${params.toString()}`);
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error || "Unable to load chart");
+      setChart(normalizeChart(json));
+      setLastUpdated(new Date());
+    } catch (e) {
+      setChart([]);
+      setError(e.message || "Unable to load chart data");
+    } finally { setLoadingChart(false); }
+  };
+
+  useEffect(() => { loadProfile(); }, []);
+  useEffect(() => { localStorage.setItem("kiteExchange", exchange); loadProducts(); }, [exchange, category]);
+  useEffect(() => { localStorage.setItem("kiteCategory", category); }, [category]);
+  useEffect(() => {
+    if (search === "") return;
+    const timer = setTimeout(loadProducts, 350);
+    return () => clearTimeout(timer);
+  }, [search]);
+  useEffect(() => {
+    if (!selectedProduct) return;
+    localStorage.setItem("kiteSelectedProduct", JSON.stringify(selectedProduct));
+    loadChart(selectedProduct);
+  }, [selectedProduct, interval]);
+  useEffect(() => { localStorage.setItem("kiteInterval", interval); }, [interval]);
+  useEffect(() => {
+    if (!selectedProduct) return;
+    const timer = setInterval(() => loadChart(selectedProduct), 30000);
+    return () => clearInterval(timer);
+  }, [selectedProduct, interval]);
+
+  const options = products.map((p, i) => ({
+    value: `${p.exchange}:${p.tradingsymbol}:${p.instrument_type || ""}:${p.expiry || ""}:${p.strike || ""}:${i}`,
+    label: `${p.tradingsymbol}${p.name && p.name !== p.tradingsymbol ? ` — ${p.name}` : ""}${p.instrument_type ? ` · ${p.instrument_type}` : ""}`,
+    product: p
+  }));
+  const selectedOption = selectedProduct ? options.find(o => o.product.tradingsymbol === selectedProduct.tradingsymbol && o.product.exchange === selectedProduct.exchange) || {
+    value: `${selectedProduct.exchange}:${selectedProduct.tradingsymbol}`,
+    label: selectedProduct.tradingsymbol,
+    product: selectedProduct
+  } : null;
+
+  const closes = chart.map(c => c.close).filter(Number.isFinite);
+  const last = closes.at(-1) || 0;
+  const previous = closes.length > 1 ? closes.at(-2) : last;
+  const change = previous ? ((last - previous) / previous) * 100 : 0;
+  const high = chart.length ? Math.max(...chart.map(c => c.high)) : 0;
+  const low = chart.length ? Math.min(...chart.map(c => c.low)) : 0;
+  const chartW = 1100, chartH = 390, pad = 45;
+  const min = low || 0, max = high || 1;
+  const points = chart.map((c, i) => {
+    const x = pad + (i / Math.max(1, chart.length - 1)) * (chartW - pad * 2);
+    const y = chartH - pad - ((c.close - min) / Math.max(0.000001, max - min)) * (chartH - pad * 2);
+    return `${x},${y}`;
+  }).join(" ");
+
+  const doLogin = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/kite/login`);
+      const json = await res.json();
+      if (json.login_url) window.open(json.login_url, "zerodhaLogin", "width=900,height=700");
+      else throw new Error(json.error || "Unable to get Zerodha login URL");
+    } catch (e) { setError(e.message || "Unable to start Zerodha login"); }
+  };
+
   return (
-    <div className="market-placeholder">
-      <div className="market-placeholder-card">
-        <div className="market-placeholder-icon">₹</div>
-        <h1>Indian Analysis Algo</h1>
-        <p>
-          Indian market analysis is selected. This section is ready to connect
-          to your Zerodha/Kite products, charts, and analysis APIs.
-        </p>
-        <div className="market-placeholder-grid">
-          <div><strong>NSE</strong><span>Indices & Equity</span></div>
-          <div><strong>BSE</strong><span>Indices & Equity</span></div>
-          <div><strong>NFO</strong><span>Futures & Options</span></div>
-          <div><strong>MCX</strong><span>Commodity</span></div>
+    <div style={{ minHeight: "100vh", background: isNight ? "#02040a" : "#f6f8fb", color: text, padding: "22px 26px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, marginBottom: 18, flexWrap: "wrap" }}>
+        <div>
+          <div style={{ fontSize: 12, color: muted, letterSpacing: 1.4 }}>INDIAN MARKET</div>
+          <h1 style={{ margin: "5px 0 0", fontSize: 28 }}>Indian Analysis Algo</h1>
         </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ padding: "9px 12px", border: `1px solid ${border}`, borderRadius: 10, background: card, fontSize: 13 }}>
+            <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: connected ? "#22c55e" : "#ef4444", marginRight: 7 }} />
+            {connected ? `Connected · ${profile?.user_name || profile?.user_id || "Zerodha"}` : "Zerodha not connected"}
+          </div>
+          {!connected && <button onClick={doLogin} style={buttonStyle(isNight, true)}>Connect Zerodha</button>}
+          <button onClick={loadProfile} style={buttonStyle(isNight)}>Refresh</button>
+          <button onClick={onLogout} style={buttonStyle(isNight)}>Logout</button>
+        </div>
+      </div>
+
+      {error && <div style={{ marginBottom: 15, padding: 12, borderRadius: 10, border: "1px solid #ef4444", color: "#ef4444", background: isNight ? "#2a0c0c" : "#fff1f2" }}>{error}</div>}
+
+      <div style={{ display: "grid", gridTemplateColumns: "180px 180px minmax(300px,1fr) 150px", gap: 12, marginBottom: 16 }}>
+        <label style={labelStyle()}>Exchange<select value={exchange} onChange={e => { setExchange(e.target.value); setSelectedProduct(null); }} style={inputStyle(input, text, border)}><option>NSE</option><option>BSE</option><option>NFO</option><option>BFO</option><option>MCX</option><option>CDS</option></select></label>
+        <label style={labelStyle()}>Category<select value={category} onChange={e => setCategory(e.target.value)} style={inputStyle(input, text, border)}><option>ALL</option><option>INDEX</option><option>EQUITY</option><option>FUTURES</option><option>OPTIONS</option><option>COMMODITY</option></select></label>
+        <label style={labelStyle()}>Search products<input value={search} onChange={e => setSearch(e.target.value)} placeholder="NIFTY, RELIANCE, BANKNIFTY..." style={inputStyle(input, text, border)} /></label>
+        <label style={labelStyle()}>Interval<select value={interval} onChange={e => setIntervalValue(e.target.value)} style={inputStyle(input, text, border)}><option value="minute">1 minute</option><option value="3minute">3 minutes</option><option value="5minute">5 minutes</option><option value="10minute">10 minutes</option><option value="15minute">15 minutes</option><option value="30minute">30 minutes</option><option value="60minute">60 minutes</option><option value="day">Daily</option></select></label>
+      </div>
+
+      <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 14, padding: 14, marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <strong>Product</strong><span style={{ fontSize: 12, color: muted }}>{loadingProducts ? "Loading products..." : `${products.length} products`}</span>
+        </div>
+        <Select
+          value={selectedOption}
+          options={options}
+          isLoading={loadingProducts}
+          isSearchable
+          onChange={o => setSelectedProduct(o?.product || null)}
+          placeholder="Select NSE / BSE / NFO / BFO / MCX / CDS product"
+          styles={{
+            control: (base) => ({ ...base, background: input, borderColor: border, minHeight: 46 }),
+            menu: (base) => ({ ...base, background: card, color: text, zIndex: 50 }),
+            option: (base, state) => ({ ...base, background: state.isFocused ? (isNight ? "#172033" : "#e2e8f0") : card, color: text }),
+            singleValue: (base) => ({ ...base, color: text }),
+            input: (base) => ({ ...base, color: text })
+          }}
+        />
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5,minmax(130px,1fr))", gap: 12, marginBottom: 16 }}>
+        <Stat title="Last Price" value={last ? last.toLocaleString("en-IN", { maximumFractionDigits: 4 }) : "—"} />
+        <Stat title="Change" value={closes.length > 1 ? `${change >= 0 ? "+" : ""}${change.toFixed(2)}%` : "—"} />
+        <Stat title="High" value={high ? high.toLocaleString("en-IN", { maximumFractionDigits: 4 }) : "—"} />
+        <Stat title="Low" value={low ? low.toLocaleString("en-IN", { maximumFractionDigits: 4 }) : "—"} />
+        <Stat title="Candles" value={chart.length || "—"} />
+      </div>
+
+      <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 14, padding: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <div><h2 style={{ margin: 0, fontSize: 20 }}>{selectedProduct?.tradingsymbol || "Select a product"}</h2><div style={{ color: muted, fontSize: 12, marginTop: 4 }}>{selectedProduct?.exchange || exchange} · {interval} · {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : ""}</div></div>
+          <button onClick={() => loadChart()} style={buttonStyle(isNight)}>{loadingChart ? "Loading..." : "Refresh Chart"}</button>
+        </div>
+        {chart.length ? <div style={{ overflowX: "auto" }}><svg viewBox={`0 0 ${chartW} ${chartH}`} style={{ width: "100%", minWidth: 700, height: 390 }}><polyline fill="none" stroke={change >= 0 ? "#22c55e" : "#ef4444"} strokeWidth="3" points={points} /></svg></div> : <div style={{ height: 390, display: "grid", placeItems: "center", color: muted }}>{loadingChart ? "Loading chart data..." : "No chart data available"}</div>}
       </div>
     </div>
   );
 }
+
+function buttonStyle(isNight, primary = false) {
+  return { border: `1px solid ${isNight ? "#334155" : "#cbd5e1"}`, background: primary ? "#2563eb" : (isNight ? "#111827" : "#fff"), color: primary ? "#fff" : (isNight ? "#e8eef7" : "#0f172a"), padding: "9px 13px", borderRadius: 9, cursor: "pointer", fontWeight: 600 };
+}
+function inputStyle(background, color, border) { return { width: "100%", boxSizing: "border-box", marginTop: 6, padding: "10px 11px", borderRadius: 9, border: `1px solid ${border}`, background, color, outline: "none" }; }
+function labelStyle() { return { display: "block", fontSize: 12, fontWeight: 700 }; }
+function Stat({ title, value }) { return <div style={{ background: "inherit", border: "1px solid #e2e8f0", borderRadius: 12, padding: 13 }}><div style={{ fontSize: 11, opacity: .6, marginBottom: 6 }}>{title}</div><div style={{ fontSize: 18, fontWeight: 800 }}>{value}</div></div>; }
 
 function MarketSidebar({ selectedMarket, setSelectedMarket, theme, width, setWidth, collapsed, setCollapsed }) {
   const resizing = React.useRef(false);
