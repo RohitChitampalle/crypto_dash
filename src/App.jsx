@@ -2208,11 +2208,15 @@ function IndianAnalysisDashboard({ onLogout, theme, setTheme }) {
   const [lastUpdated, setLastUpdated] = useState(null);
 
   const isNight = theme === "night";
-  const text = isNight ? "#e8eef7" : "#0f172a";
-  const muted = isNight ? "#94a3b8" : "#64748b";
-  const card = isNight ? "#0b1220" : "#ffffff";
-  const border = isNight ? "#1e293b" : "#e2e8f0";
-  const input = isNight ? "#0f172a" : "#f8fafc";
+  const bg = isNight ? "#02040a" : "#f5f7fb";
+  const card = isNight ? "#0a101b" : "#ffffff";
+  const card2 = isNight ? "#0d1522" : "#f8fafc";
+  const border = isNight ? "#1d2939" : "#e2e8f0";
+  const text = isNight ? "#edf2f7" : "#0f172a";
+  const muted = isNight ? "#8b9bb0" : "#64748b";
+  const green = "#22c55e";
+  const red = "#ef4444";
+  const blue = "#3b82f6";
 
   const normalizeProducts = (payload) => {
     const raw = payload?.data?.products || payload?.data?.items || payload?.data || payload?.products || [];
@@ -2221,11 +2225,11 @@ function IndianAnalysisDashboard({ onLogout, theme, setTheme }) {
 
   const normalizeChart = (payload) => {
     const raw = payload?.data?.candles || payload?.data?.chart || payload?.data || payload?.candles || [];
-    return Array.isArray(raw) ? raw.map((c) => ({
+    return Array.isArray(raw) ? raw.map(c => ({
       timestamp: c.timestamp || c.date || c.time,
       open: Number(c.open), high: Number(c.high), low: Number(c.low), close: Number(c.close),
       volume: Number(c.volume || 0), oi: Number(c.oi || 0)
-    })).filter(c => Number.isFinite(c.close)) : [];
+    })).filter(c => [c.open,c.high,c.low,c.close].every(Number.isFinite)) : [];
   };
 
   const loadProfile = async () => {
@@ -2233,66 +2237,48 @@ function IndianAnalysisDashboard({ onLogout, theme, setTheme }) {
       const res = await fetch(`${API_BASE}/api/kite/profile`);
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.error || "Zerodha is not connected");
-      setProfile(json.data || null);
-      setConnected(true);
-      setError("");
-    } catch (e) {
-      setConnected(false);
-      setProfile(null);
-      setError(e.message || "Unable to connect to Zerodha");
-    }
+      setProfile(json.data || null); setConnected(true); setError("");
+    } catch (e) { setConnected(false); setProfile(null); setError(e.message || "Unable to connect to Zerodha"); }
   };
 
   const loadProducts = async () => {
-    setLoadingProducts(true);
-    setError("");
+    setLoadingProducts(true); setError("");
     try {
       const params = new URLSearchParams({ exchange, category, page: "1", limit: "500" });
       if (search.trim()) params.set("search", search.trim());
       const res = await fetch(`${API_BASE}/api/kite/products?${params.toString()}`);
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.error || "Unable to load products");
-      const list = normalizeProducts(json);
-      setProducts(list);
+      const list = normalizeProducts(json); setProducts(list);
       if (selectedProduct) {
-        const stillExists = list.some(p => p.tradingsymbol === selectedProduct.tradingsymbol && p.exchange === selectedProduct.exchange);
-        if (!stillExists && list.length) setSelectedProduct(list[0]);
+        const exists = list.some(p => p.tradingsymbol === selectedProduct.tradingsymbol && p.exchange === selectedProduct.exchange);
+        if (!exists && list.length) setSelectedProduct(list[0]);
       } else if (list.length) {
         const nifty = list.find(p => p.tradingsymbol === "NIFTY 50");
         setSelectedProduct(nifty || list[0]);
       }
-    } catch (e) {
-      setProducts([]);
-      setError(e.message || "Unable to load Indian market products");
-    } finally { setLoadingProducts(false); }
+    } catch (e) { setProducts([]); setError(e.message || "Unable to load Indian market products"); }
+    finally { setLoadingProducts(false); }
   };
 
   const loadChart = async (product = selectedProduct) => {
     if (!product?.tradingsymbol) return;
-    setLoadingChart(true);
-    setError("");
+    setLoadingChart(true); setError("");
     try {
-      const params = new URLSearchParams({
-        exchange: product.exchange || exchange,
-        symbol: product.tradingsymbol,
-        interval
-      });
+      const params = new URLSearchParams({ exchange: product.exchange || exchange, symbol: product.tradingsymbol, interval });
       const res = await fetch(`${API_BASE}/api/kite/chart?${params.toString()}`);
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.error || "Unable to load chart");
-      setChart(normalizeChart(json));
-      setLastUpdated(new Date());
-    } catch (e) {
-      setChart([]);
-      setError(e.message || "Unable to load chart data");
-    } finally { setLoadingChart(false); }
+      setChart(normalizeChart(json)); setLastUpdated(new Date());
+    } catch (e) { setChart([]); setError(e.message || "Unable to load chart data"); }
+    finally { setLoadingChart(false); }
   };
 
   useEffect(() => { loadProfile(); }, []);
   useEffect(() => { localStorage.setItem("kiteExchange", exchange); loadProducts(); }, [exchange, category]);
   useEffect(() => { localStorage.setItem("kiteCategory", category); }, [category]);
   useEffect(() => {
-    if (search === "") return;
+    if (!search.trim()) return;
     const timer = setTimeout(loadProducts, 350);
     return () => clearTimeout(timer);
   }, [search]);
@@ -2313,11 +2299,7 @@ function IndianAnalysisDashboard({ onLogout, theme, setTheme }) {
     label: `${p.tradingsymbol}${p.name && p.name !== p.tradingsymbol ? ` — ${p.name}` : ""}${p.instrument_type ? ` · ${p.instrument_type}` : ""}`,
     product: p
   }));
-  const selectedOption = selectedProduct ? options.find(o => o.product.tradingsymbol === selectedProduct.tradingsymbol && o.product.exchange === selectedProduct.exchange) || {
-    value: `${selectedProduct.exchange}:${selectedProduct.tradingsymbol}`,
-    label: selectedProduct.tradingsymbol,
-    product: selectedProduct
-  } : null;
+  const selectedOption = selectedProduct ? options.find(o => o.product.tradingsymbol === selectedProduct.tradingsymbol && o.product.exchange === selectedProduct.exchange) || { value: `${selectedProduct.exchange}:${selectedProduct.tradingsymbol}`, label: selectedProduct.tradingsymbol, product: selectedProduct } : null;
 
   const closes = chart.map(c => c.close).filter(Number.isFinite);
   const last = closes.at(-1) || 0;
@@ -2325,85 +2307,138 @@ function IndianAnalysisDashboard({ onLogout, theme, setTheme }) {
   const change = previous ? ((last - previous) / previous) * 100 : 0;
   const high = chart.length ? Math.max(...chart.map(c => c.high)) : 0;
   const low = chart.length ? Math.min(...chart.map(c => c.low)) : 0;
-  const chartW = 1100, chartH = 390, pad = 45;
-  const min = low || 0, max = high || 1;
-  const points = chart.map((c, i) => {
-    const x = pad + (i / Math.max(1, chart.length - 1)) * (chartW - pad * 2);
-    const y = chartH - pad - ((c.close - min) / Math.max(0.000001, max - min)) * (chartH - pad * 2);
-    return `${x},${y}`;
-  }).join(" ");
+  const volumes = chart.map(c => c.volume).filter(Number.isFinite);
+  const volume = volumes.at(-1) || 0;
+  const avgVolume = volumes.length ? volumes.slice(-20).reduce((a,b) => a+b, 0) / Math.min(20, volumes.length) : 0;
+
+  const ema = (period) => {
+    if (!closes.length) return 0;
+    const k = 2 / (period + 1);
+    let value = closes[0];
+    closes.forEach(v => { value = v * k + value * (1-k); });
+    return value;
+  };
+  const ema9 = ema(9);
+  const ema20 = ema(20);
+  const gains = [], losses = [];
+  for (let i = Math.max(1, closes.length - 15); i < closes.length; i++) {
+    const d = closes[i] - closes[i-1]; if (d >= 0) gains.push(d); else losses.push(Math.abs(d));
+  }
+  const avgGain = gains.length ? gains.reduce((a,b)=>a+b,0)/gains.length : 0;
+  const avgLoss = losses.length ? losses.reduce((a,b)=>a+b,0)/losses.length : 0;
+  const rsi = avgLoss === 0 ? (avgGain ? 100 : 50) : 100 - (100 / (1 + avgGain / avgLoss));
+  const atr = chart.length ? chart.slice(-14).reduce((sum,c) => sum + (c.high-c.low), 0) / Math.min(14, chart.length) : 0;
+  const momentum = closes.length > 5 ? ((last - closes[Math.max(0, closes.length-6)]) / closes[Math.max(0, closes.length-6)]) * 100 : 0;
+  const bullish = ema9 > ema20 && rsi >= 50 && momentum >= 0;
+  const bearish = ema9 < ema20 && rsi < 50 && momentum < 0;
+  const action = bullish ? "BUY" : bearish ? "SELL" : "HOLD";
+  const actionColor = action === "BUY" ? green : action === "SELL" ? red : "#f59e0b";
+  const confidence = Math.min(99, Math.round(50 + Math.abs(momentum) * 8 + Math.abs(rsi - 50) * 0.6));
+
+  const chartW = 1200, chartH = 430, pad = { l: 60, r: 20, t: 25, b: 45 };
+  const range = Math.max(0.000001, high-low);
+  const xFor = i => pad.l + (i / Math.max(1, chart.length-1)) * (chartW-pad.l-pad.r);
+  const yFor = price => pad.t + (high-price)/range * (chartH-pad.t-pad.b);
+  const candleWidth = Math.max(3, Math.min(12, ((chartW-pad.l-pad.r)/Math.max(1,chart.length))*0.62));
+  const volumeMax = Math.max(1, ...volumes.slice(-80));
+  const visible = chart.slice(-100);
+  const offset = chart.length - visible.length;
+  const gridPrices = [0, .25, .5, .75, 1].map(f => high - range*f);
 
   const doLogin = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/kite/login`);
-      const json = await res.json();
-      if (json.login_url) window.open(json.login_url, "zerodhaLogin", "width=900,height=700");
-      else throw new Error(json.error || "Unable to get Zerodha login URL");
+      const res = await fetch(`${API_BASE}/api/kite/login`); const json = await res.json();
+      if (json.login_url) window.open(json.login_url, "zerodhaLogin", "width=900,height=700"); else throw new Error(json.error || "Unable to get Zerodha login URL");
     } catch (e) { setError(e.message || "Unable to start Zerodha login"); }
   };
 
+  const selectStyles = {
+    control: base => ({ ...base, minHeight: 44, background: card2, borderColor: border, boxShadow: "none" }),
+    menu: base => ({ ...base, background: card, color: text, zIndex: 100 }),
+    option: (base, state) => ({ ...base, background: state.isFocused ? (isNight ? "#162033" : "#e8eef7") : card, color: text }),
+    singleValue: base => ({ ...base, color: text }),
+    input: base => ({ ...base, color: text }),
+    placeholder: base => ({ ...base, color: muted })
+  };
+  const section = { background: card, border: `1px solid ${border}`, borderRadius: 16, boxShadow: isNight ? "0 12px 35px rgba(0,0,0,.18)" : "0 10px 30px rgba(15,23,42,.05)" };
+  const metric = (title, value, sub, color = text) => <div style={{...section, padding: 16, minWidth: 0}}><div style={{fontSize:11,color:muted,fontWeight:700,textTransform:"uppercase",letterSpacing:.7}}>{title}</div><div style={{fontSize:22,fontWeight:850,marginTop:7,color}}>{value}</div><div style={{fontSize:11,color:muted,marginTop:5}}>{sub}</div></div>;
+
   return (
-    <div style={{ minHeight: "100vh", background: isNight ? "#02040a" : "#f6f8fb", color: text, padding: "22px 26px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, marginBottom: 18, flexWrap: "wrap" }}>
+    <div style={{ minHeight: "100vh", width: "100%", boxSizing: "border-box", background: bg, color: text, padding: "20px 24px 30px" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:16, flexWrap:"wrap", marginBottom:18 }}>
         <div>
-          <div style={{ fontSize: 12, color: muted, letterSpacing: 1.4 }}>INDIAN MARKET</div>
-          <h1 style={{ margin: "5px 0 0", fontSize: 28 }}>Indian Analysis Algo</h1>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ padding: "9px 12px", border: `1px solid ${border}`, borderRadius: 10, background: card, fontSize: 13 }}>
-            <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: connected ? "#22c55e" : "#ef4444", marginRight: 7 }} />
-            {connected ? `Connected · ${profile?.user_name || profile?.user_id || "Zerodha"}` : "Zerodha not connected"}
+          <div style={{fontSize:11,color:blue,fontWeight:800,letterSpacing:1.5}}>INDIAN AI ANALYSIS</div>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginTop:5}}>
+            <h1 style={{margin:0,fontSize:28,lineHeight:1.1}}>Indian Market Dashboard</h1>
+            <span style={{fontSize:11,padding:"5px 8px",borderRadius:999,border:`1px solid ${connected ? "#166534" : border}`,color:connected?green:muted,background:connected?(isNight?"#052e16":"#f0fdf4"):card2}}>{connected ? "● LIVE" : "● OFFLINE"}</span>
           </div>
-          {!connected && <button onClick={doLogin} style={buttonStyle(isNight, true)}>Connect Zerodha</button>}
+          <div style={{fontSize:12,color:muted,marginTop:7}}>{selectedProduct ? `${selectedProduct.exchange} · ${selectedProduct.tradingsymbol}` : "Select an Indian market instrument"} · Auto refresh 30s</div>
+        </div>
+        <div style={{display:"flex",gap:9,alignItems:"center",flexWrap:"wrap"}}>
+          <div style={{padding:"9px 12px",border:`1px solid ${border}`,borderRadius:10,background:card,fontSize:12}}><span style={{display:"inline-block",width:7,height:7,borderRadius:"50%",background:connected?green:red,marginRight:7}}/>{connected ? profile?.user_name || profile?.user_id || "Zerodha Connected" : "Zerodha not connected"}</div>
+          {!connected && <button onClick={doLogin} style={buttonStyle(isNight,true)}>Connect Zerodha</button>}
           <button onClick={loadProfile} style={buttonStyle(isNight)}>Refresh</button>
           <button onClick={onLogout} style={buttonStyle(isNight)}>Logout</button>
         </div>
       </div>
 
-      {error && <div style={{ marginBottom: 15, padding: 12, borderRadius: 10, border: "1px solid #ef4444", color: "#ef4444", background: isNight ? "#2a0c0c" : "#fff1f2" }}>{error}</div>}
+      {error && <div style={{marginBottom:14,padding:"11px 14px",borderRadius:11,border:"1px solid #ef4444",color:red,background:isNight?"#2a0c0c":"#fff1f2",fontSize:13}}>{error}</div>}
 
-      <div style={{ display: "grid", gridTemplateColumns: "180px 180px minmax(300px,1fr) 150px", gap: 12, marginBottom: 16 }}>
-        <label style={labelStyle()}>Exchange<select value={exchange} onChange={e => { setExchange(e.target.value); setSelectedProduct(null); }} style={inputStyle(input, text, border)}><option>NSE</option><option>BSE</option><option>NFO</option><option>BFO</option><option>MCX</option><option>CDS</option></select></label>
-        <label style={labelStyle()}>Category<select value={category} onChange={e => setCategory(e.target.value)} style={inputStyle(input, text, border)}><option>ALL</option><option>INDEX</option><option>EQUITY</option><option>FUTURES</option><option>OPTIONS</option><option>COMMODITY</option></select></label>
-        <label style={labelStyle()}>Search products<input value={search} onChange={e => setSearch(e.target.value)} placeholder="NIFTY, RELIANCE, BANKNIFTY..." style={inputStyle(input, text, border)} /></label>
-        <label style={labelStyle()}>Interval<select value={interval} onChange={e => setIntervalValue(e.target.value)} style={inputStyle(input, text, border)}><option value="minute">1 minute</option><option value="3minute">3 minutes</option><option value="5minute">5 minutes</option><option value="10minute">10 minutes</option><option value="15minute">15 minutes</option><option value="30minute">30 minutes</option><option value="60minute">60 minutes</option><option value="day">Daily</option></select></label>
+      <div style={{...section,padding:14,marginBottom:16,display:"grid",gridTemplateColumns:"140px 150px minmax(260px,1fr) 150px",gap:10}}>
+        <label style={labelStyle()}>Exchange<select value={exchange} onChange={e=>{setExchange(e.target.value);setSelectedProduct(null);}} style={inputStyle(card2,text,border)}><option>NSE</option><option>BSE</option><option>NFO</option><option>BFO</option><option>MCX</option><option>CDS</option></select></label>
+        <label style={labelStyle()}>Category<select value={category} onChange={e=>setCategory(e.target.value)} style={inputStyle(card2,text,border)}><option>ALL</option><option>INDEX</option><option>EQUITY</option><option>FUTURES</option><option>OPTIONS</option><option>COMMODITY</option></select></label>
+        <div style={{minWidth:0}}><div style={{fontSize:12,fontWeight:700,marginBottom:6}}>Instrument</div><Select value={selectedOption} options={options} isLoading={loadingProducts} isSearchable onChange={o=>setSelectedProduct(o?.product||null)} placeholder="Search NIFTY, BANKNIFTY, RELIANCE, options..." styles={selectStyles}/></div>
+        <label style={labelStyle()}>Interval<select value={interval} onChange={e=>setIntervalValue(e.target.value)} style={inputStyle(card2,text,border)}><option value="minute">1 minute</option><option value="3minute">3 minutes</option><option value="5minute">5 minutes</option><option value="10minute">10 minutes</option><option value="15minute">15 minutes</option><option value="30minute">30 minutes</option><option value="60minute">60 minutes</option><option value="day">Daily</option></select></label>
       </div>
 
-      <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 14, padding: 14, marginBottom: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-          <strong>Product</strong><span style={{ fontSize: 12, color: muted }}>{loadingProducts ? "Loading products..." : `${products.length} products`}</span>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(5,minmax(140px,1fr))",gap:12,marginBottom:16}}>
+        {metric("Last Price",last?last.toLocaleString("en-IN",{maximumFractionDigits:4}):"—",change?`${change>=0?"+":""}${change.toFixed(2)}% from previous candle`:"No data",change>=0?green:red)}
+        {metric("EMA 9",ema9?ema9.toLocaleString("en-IN",{maximumFractionDigits:2}):"—",ema9>=ema20?"Above EMA 20":"Below EMA 20",ema9>=ema20?green:red)}
+        {metric("EMA 20",ema20?ema20.toLocaleString("en-IN",{maximumFractionDigits:2}):"—",`${chart.length} candles loaded`,text)}
+        {metric("RSI",rsi? rsi.toFixed(1):"—",rsi>=70?"Overbought":rsi<=30?"Oversold":"Neutral",rsi>=70||rsi<=30?"#f59e0b":text)}
+        {metric("ATR",atr?atr.toFixed(2):"—",volume?`Volume ${volume.toLocaleString("en-IN")}`:"No volume",text)}
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) 300px",gap:16,alignItems:"stretch"}}>
+        <div style={{...section,padding:18,minWidth:0}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginBottom:12}}>
+            <div><h2 style={{margin:0,fontSize:19}}>{selectedProduct?.tradingsymbol || "Select a product"}</h2><div style={{fontSize:11,color:muted,marginTop:4}}>{selectedProduct?.name || "Indian market price action"} · {interval} {lastUpdated ? `· Updated ${lastUpdated.toLocaleTimeString()}` : ""}</div></div>
+            <button onClick={()=>loadChart()} style={buttonStyle(isNight)}>{loadingChart?"Loading...":"↻ Refresh"}</button>
+          </div>
+          {chart.length ? (
+            <div style={{width:"100%",overflow:"hidden",background:card2,borderRadius:12,border:`1px solid ${border}`}}>
+              <svg viewBox={`0 0 ${chartW} ${chartH}`} style={{display:"block",width:"100%",height:"min(48vw,430px)",minHeight:300}}>
+                {gridPrices.map((p,i)=><g key={i}><line x1={pad.l} x2={chartW-pad.r} y1={yFor(p)} y2={yFor(p)} stroke={border} strokeDasharray="4 6"/><text x={chartW-5} y={yFor(p)+4} textAnchor="end" fontSize="11" fill={muted}>{p.toLocaleString("en-IN",{maximumFractionDigits:2})}</text></g>)}
+                {visible.map((c,i)=>{ const x=xFor(i+offset), up=c.close>=c.open, bodyY=Math.min(yFor(c.open),yFor(c.close)), bodyH=Math.max(2,Math.abs(yFor(c.close)-yFor(c.open))); return <g key={i}><line x1={x} x2={x} y1={yFor(c.high)} y2={yFor(c.low)} stroke={up?green:red} strokeWidth="1.5"/><rect x={x-candleWidth/2} y={bodyY} width={candleWidth} height={bodyH} rx="1" fill={up?green:red}/></g>; })}
+                {last>0 && <><line x1={pad.l} x2={chartW-pad.r} y1={yFor(last)} y2={yFor(last)} stroke={blue} strokeDasharray="5 5"/><rect x={chartW-pad.r-88} y={yFor(last)-10} width="83" height="20" rx="5" fill={blue}/><text x={chartW-pad.r-46} y={yFor(last)+4} textAnchor="middle" fontSize="11" fill="#fff">{last.toLocaleString("en-IN",{maximumFractionDigits:2})}</text></>}
+              </svg>
+              <div style={{padding:"8px 12px 12px",fontSize:11,color:muted}}>Green candles = bullish · Red candles = bearish · Showing latest {visible.length} candles</div>
+            </div>
+          ) : <div style={{height:430,display:"grid",placeItems:"center",color:muted,background:card2,borderRadius:12,border:`1px solid ${border}`}}>{loadingChart?"Loading Indian market data...":"No chart data available"}</div>}
         </div>
-        <Select
-          value={selectedOption}
-          options={options}
-          isLoading={loadingProducts}
-          isSearchable
-          onChange={o => setSelectedProduct(o?.product || null)}
-          placeholder="Select NSE / BSE / NFO / BFO / MCX / CDS product"
-          styles={{
-            control: (base) => ({ ...base, background: input, borderColor: border, minHeight: 46 }),
-            menu: (base) => ({ ...base, background: card, color: text, zIndex: 50 }),
-            option: (base, state) => ({ ...base, background: state.isFocused ? (isNight ? "#172033" : "#e2e8f0") : card, color: text }),
-            singleValue: (base) => ({ ...base, color: text }),
-            input: (base) => ({ ...base, color: text })
-          }}
-        />
-      </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5,minmax(130px,1fr))", gap: 12, marginBottom: 16 }}>
-        <Stat title="Last Price" value={last ? last.toLocaleString("en-IN", { maximumFractionDigits: 4 }) : "—"} />
-        <Stat title="Change" value={closes.length > 1 ? `${change >= 0 ? "+" : ""}${change.toFixed(2)}%` : "—"} />
-        <Stat title="High" value={high ? high.toLocaleString("en-IN", { maximumFractionDigits: 4 }) : "—"} />
-        <Stat title="Low" value={low ? low.toLocaleString("en-IN", { maximumFractionDigits: 4 }) : "—"} />
-        <Stat title="Candles" value={chart.length || "—"} />
-      </div>
-
-      <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 14, padding: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <div><h2 style={{ margin: 0, fontSize: 20 }}>{selectedProduct?.tradingsymbol || "Select a product"}</h2><div style={{ color: muted, fontSize: 12, marginTop: 4 }}>{selectedProduct?.exchange || exchange} · {interval} · {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : ""}</div></div>
-          <button onClick={() => loadChart()} style={buttonStyle(isNight)}>{loadingChart ? "Loading..." : "Refresh Chart"}</button>
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <div style={{...section,padding:18,border:`1px solid ${actionColor}55`}}>
+            <div style={{fontSize:11,color:muted,fontWeight:800,letterSpacing:1}}>AI MARKET DECISION</div>
+            <div style={{display:"flex",alignItems:"center",gap:12,marginTop:12}}><div style={{width:58,height:58,borderRadius:16,display:"grid",placeItems:"center",background:`${actionColor}18`,color:actionColor,fontSize:15,fontWeight:900}}>{action}</div><div><div style={{fontSize:24,fontWeight:900}}>{confidence}%</div><div style={{fontSize:11,color:muted}}>signal confidence</div></div></div>
+            <div style={{marginTop:14,fontSize:13,lineHeight:1.6,color:muted}}>{action === "BUY" ? "Trend conditions are positive: EMA 9 is above EMA 20 and momentum is positive." : action === "SELL" ? "Trend conditions are negative: EMA 9 is below EMA 20 and momentum is negative." : "Signals are mixed. Price action does not currently meet the directional conditions."}</div>
+          </div>
+          <div style={{...section,padding:18}}>
+            <div style={{fontSize:11,color:muted,fontWeight:800,letterSpacing:1,marginBottom:12}}>AI DECISION FACTORS</div>
+            {[['Trend',ema9>=ema20?'Bullish':'Bearish',ema9>=ema20?green:red],['RSI',rsi>=70?'Overbought':rsi<=30?'Oversold':'Neutral',rsi>=70||rsi<=30?'#f59e0b':text],['Momentum',`${momentum>=0?'+':''}${momentum.toFixed(2)}%`,momentum>=0?green:red],['Volume',avgVolume&&volume>avgVolume?'Above average':'Normal',volume>avgVolume?green:text]].map(([k,v,c])=><div key={k} style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid ${border}`,fontSize:13}}><span style={{color:muted}}>{k}</span><strong style={{color:c}}>{v}</strong></div>)}
+          </div>
+          <div style={{...section,padding:18}}>
+            <div style={{fontSize:11,color:muted,fontWeight:800,letterSpacing:1}}>POTENTIAL MOVE</div>
+            <div style={{fontSize:22,fontWeight:900,marginTop:9}}>{atr?`${(atr*2).toFixed(2)} pts`:"—"}</div>
+            <div style={{fontSize:11,color:muted,marginTop:4}}>2 × ATR reference range</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:13}}><div style={{padding:10,borderRadius:10,background:card2}}><div style={{fontSize:10,color:muted}}>Support</div><strong>{low?low.toLocaleString("en-IN",{maximumFractionDigits:2}):"—"}</strong></div><div style={{padding:10,borderRadius:10,background:card2}}><div style={{fontSize:10,color:muted}}>Resistance</div><strong>{high?high.toLocaleString("en-IN",{maximumFractionDigits:2}):"—"}</strong></div></div>
+          </div>
         </div>
-        {chart.length ? <div style={{ overflowX: "auto" }}><svg viewBox={`0 0 ${chartW} ${chartH}`} style={{ width: "100%", minWidth: 700, height: 390 }}><polyline fill="none" stroke={change >= 0 ? "#22c55e" : "#ef4444"} strokeWidth="3" points={points} /></svg></div> : <div style={{ height: 390, display: "grid", placeItems: "center", color: muted }}>{loadingChart ? "Loading chart data..." : "No chart data available"}</div>}
+      </div>
+
+      <div style={{...section,padding:16,marginTop:16}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><div><div style={{fontSize:11,color:muted,fontWeight:800,letterSpacing:1}}>MARKET SNAPSHOT</div><div style={{fontSize:16,fontWeight:800,marginTop:4}}>Indian instrument details</div></div><div style={{fontSize:11,color:muted}}>{loadingProducts?"Loading products...":`${products.length} instruments available`}</div></div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(6,minmax(110px,1fr))",gap:10}}>{[["Exchange",selectedProduct?.exchange||exchange],["Symbol",selectedProduct?.tradingsymbol||"—"],["Type",selectedProduct?.instrument_type||"—"],["Expiry",selectedProduct?.expiry||"—"],["Strike",selectedProduct?.strike ? Number(selectedProduct.strike).toLocaleString("en-IN") : "—"],["OI",chart.at(-1)?.oi ? Number(chart.at(-1).oi).toLocaleString("en-IN") : "—"]].map(([k,v])=><div key={k} style={{padding:12,borderRadius:11,background:card2,border:`1px solid ${border}`}}><div style={{fontSize:10,color:muted,textTransform:"uppercase"}}>{k}</div><div style={{fontSize:13,fontWeight:800,marginTop:6,wordBreak:"break-word"}}>{v}</div></div>)}</div>
       </div>
     </div>
   );
