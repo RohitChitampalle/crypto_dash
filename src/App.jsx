@@ -494,7 +494,26 @@ const themeStyles = `
      MOBILE
   ===================================================== */
 
-  @media (max-width: 768px) {
+  .mobile-sidebar-open {
+  position: fixed;
+  left: 14px;
+  top: 14px;
+  z-index: 1100;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--border, #dbe2ea);
+  border-radius: 12px;
+  background: var(--panel, #ffffff);
+  color: inherit;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(15,23,42,.14);
+}
+.mobile-sidebar-open:hover { transform: translateY(-1px); }
+@media (min-width: 769px) { .mobile-sidebar-open { display: none; } }
+
+@media (max-width: 768px) {
     .theme-switcher {
       width: 100%;
       justify-content: center;
@@ -2150,6 +2169,8 @@ const MARKET_SIDEBAR_CSS = `
 .market-sidebar-resizer { position: absolute; top: 0; right: -8px; width: 16px; height: 100%; cursor: col-resize; display: grid; place-items: center; opacity: 0; color: #64748b; }
 .market-sidebar:hover .market-sidebar-resizer { opacity: .55; }
 .market-content { margin-left: var(--market-sidebar-width, 280px); min-height: 100vh; }
+.mobile-sidebar-open { display: none; }
+.indian-dashboard { overflow-x: hidden; }
 .market-placeholder { min-height: 100vh; padding: 48px; display: grid; place-items: center; background: var(--page-bg, #f6f8fb); }
 .market-placeholder-card { width: min(900px, 100%); border: 1px solid var(--border, #dbe2ea); border-radius: 22px; padding: 42px; background: var(--panel, #fff); box-shadow: 0 18px 50px rgba(15,23,42,.08); }
 .market-placeholder-icon { width: 58px; height: 58px; border-radius: 16px; display: grid; place-items: center; background: #2563eb; color: #fff; font-size: 28px; font-weight: 900; }
@@ -2159,14 +2180,83 @@ const MARKET_SIDEBAR_CSS = `
 .market-placeholder-grid > div { padding: 18px; border: 1px solid var(--border, #dbe2ea); border-radius: 14px; }
 .market-placeholder-grid strong, .market-placeholder-grid span { display: block; }
 .market-placeholder-grid span { margin-top: 5px; font-size: 12px; opacity: .6; }
-@media (max-width: 768px) {
-  .market-sidebar { width: 280px !important; transform: translateX(0); }
-  .market-sidebar.collapsed { transform: translateX(-100%); width: 280px !important; }
-  .market-content { margin-left: 0 !important; }
-  .market-placeholder { padding: 20px; }
-  .market-placeholder-card { padding: 25px; }
-  .market-placeholder-grid { grid-template-columns: repeat(2,1fr); }
+@media (max-width: 1100px) and (min-width: 769px) {
+  .market-sidebar { width: 240px !important; }
+  .market-content { margin-left: 240px !important; }
+  .indian-dashboard { padding-left: 18px !important; padding-right: 18px !important; }
+  .indian-controls-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .indian-metrics-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+  .indian-chart-grid { grid-template-columns: minmax(0, 1fr) !important; }
+  .indian-snapshot-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
 }
+
+@media (max-width: 768px) {
+  .market-sidebar {
+    width: min(86vw, 320px) !important;
+    transform: translateX(0);
+    box-shadow: 8px 0 28px rgba(15,23,42,.16);
+  }
+  .market-sidebar.collapsed {
+    transform: translateX(-105%);
+    width: min(86vw, 320px) !important;
+    pointer-events: none;
+  }
+  .market-sidebar.collapsed .market-sidebar-toggle { pointer-events: none; }
+  .market-sidebar .market-sidebar-resizer { display: none; }
+
+  .mobile-sidebar-open {
+    position: fixed;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 1100;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 46px;
+    padding: 0 14px 0 11px;
+    border: 1px solid rgba(37, 99, 235, .20);
+    border-left: 0;
+    border-radius: 0 14px 14px 0;
+    background: rgba(255,255,255,.96);
+    color: #2563eb;
+    box-shadow: 0 8px 24px rgba(15,23,42,.14);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: .01em;
+  }
+  .mobile-sidebar-open:active { transform: translateY(-50%) scale(.97); }
+  .crypto-app.theme-night .mobile-sidebar-open {
+    background: rgba(10,16,27,.96);
+    border-color: rgba(59,130,246,.28);
+    color: #60a5fa;
+    box-shadow: 0 10px 28px rgba(0,0,0,.35);
+  }
+
+  .market-content { margin-left: 0 !important; width: 100%; }
+  .indian-dashboard { padding: 14px 12px 24px !important; }
+  .indian-dashboard h1 { font-size: 22px !important; }
+  .indian-dashboard button { max-width: 100%; }
+  .indian-controls-grid { grid-template-columns: 1fr !important; }
+  .indian-metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .indian-chart-grid { grid-template-columns: 1fr !important; }
+  .indian-snapshot-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .indian-support-grid { grid-template-columns: 1fr 1fr !important; }
+
+  .market-sidebar-header { height: 68px; padding: 0 12px; }
+  .market-sidebar-items { padding: 12px 9px; }
+  .market-sidebar-item { min-height: 48px; }
+}
+
+@media (max-width: 420px) {
+  .indian-metrics-grid { grid-template-columns: 1fr !important; }
+  .indian-snapshot-grid { grid-template-columns: 1fr !important; }
+  .indian-support-grid { grid-template-columns: 1fr !important; }
+}
+
 `;
 
 function MarketSidebarStyles() {
@@ -2202,6 +2292,8 @@ function IndianAnalysisDashboard({ onLogout, theme, setTheme }) {
   const [chart, setChart] = useState([]);
   const [profile, setProfile] = useState(null);
   const [connected, setConnected] = useState(false);
+  const [checkingConnection, setCheckingConnection] = useState(true);
+  const [loginInProgress, setLoginInProgress] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [loadingChart, setLoadingChart] = useState(false);
   const [error, setError] = useState("");
@@ -2232,13 +2324,24 @@ function IndianAnalysisDashboard({ onLogout, theme, setTheme }) {
     })).filter(c => [c.open,c.high,c.low,c.close].every(Number.isFinite)) : [];
   };
 
-  const loadProfile = async () => {
+  const loadProfile = async (showError = false) => {
+    setCheckingConnection(true);
     try {
-      const res = await fetch(`${API_BASE}/api/kite/profile`);
+      const res = await fetch(`${API_BASE}/api/kite/profile`, { cache: "no-store" });
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.error || "Zerodha is not connected");
-      setProfile(json.data || null); setConnected(true); setError("");
-    } catch (e) { setConnected(false); setProfile(null); setError(e.message || "Unable to connect to Zerodha"); }
+      setProfile(json.data || null);
+      setConnected(true);
+      setError("");
+      return true;
+    } catch (e) {
+      setConnected(false);
+      setProfile(null);
+      if (showError) setError(e.message || "Unable to connect to Zerodha");
+      return false;
+    } finally {
+      setCheckingConnection(false);
+    }
   };
 
   const loadProducts = async () => {
@@ -2274,8 +2377,8 @@ function IndianAnalysisDashboard({ onLogout, theme, setTheme }) {
     finally { setLoadingChart(false); }
   };
 
-  useEffect(() => { loadProfile(); }, []);
-  useEffect(() => { localStorage.setItem("kiteExchange", exchange); loadProducts(); }, [exchange, category]);
+  useEffect(() => { loadProfile(false); }, []);
+  useEffect(() => { localStorage.setItem("kiteExchange", exchange); if (connected) loadProducts(); }, [exchange, category, connected]);
   useEffect(() => { localStorage.setItem("kiteCategory", category); }, [category]);
   useEffect(() => {
     if (!search.trim()) return;
@@ -2346,10 +2449,33 @@ function IndianAnalysisDashboard({ onLogout, theme, setTheme }) {
   const gridPrices = [0, .25, .5, .75, 1].map(f => high - range*f);
 
   const doLogin = async () => {
+    setLoginInProgress(true);
+    setError("");
     try {
-      const res = await fetch(`${API_BASE}/api/kite/login`); const json = await res.json();
-      if (json.login_url) window.open(json.login_url, "zerodhaLogin", "width=900,height=700"); else throw new Error(json.error || "Unable to get Zerodha login URL");
-    } catch (e) { setError(e.message || "Unable to start Zerodha login"); }
+      const res = await fetch(`${API_BASE}/api/kite/login`, { cache: "no-store" });
+      const json = await res.json();
+      if (!res.ok || !json.login_url) throw new Error(json.error || "Unable to get Zerodha login URL");
+      const popup = window.open(json.login_url, "zerodhaLogin", "width=900,height=760,resizable=yes,scrollbars=yes");
+      if (!popup) {
+        window.location.href = json.login_url;
+        return;
+      }
+      const poll = setInterval(async () => {
+        const ok = await loadProfile(false);
+        if (ok) {
+          clearInterval(poll);
+          setLoginInProgress(false);
+          try { popup.close(); } catch {}
+        }
+      }, 2500);
+      setTimeout(() => {
+        clearInterval(poll);
+        setLoginInProgress(false);
+      }, 180000);
+    } catch (e) {
+      setLoginInProgress(false);
+      setError(e.message || "Unable to start Zerodha login");
+    }
   };
 
   const selectStyles = {
@@ -2364,34 +2490,47 @@ function IndianAnalysisDashboard({ onLogout, theme, setTheme }) {
   const metric = (title, value, sub, color = text) => <div style={{...section, padding: 16, minWidth: 0}}><div style={{fontSize:11,color:muted,fontWeight:700,textTransform:"uppercase",letterSpacing:.7}}>{title}</div><div style={{fontSize:22,fontWeight:850,marginTop:7,color}}>{value}</div><div style={{fontSize:11,color:muted,marginTop:5}}>{sub}</div></div>;
 
   return (
-    <div style={{ minHeight: "100vh", width: "100%", boxSizing: "border-box", background: bg, color: text, padding: "20px 24px 30px" }}>
+    <div className="indian-dashboard" style={{ minHeight: "100vh", width: "100%", boxSizing: "border-box", background: bg, color: text, padding: "20px 24px 30px" }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:16, flexWrap:"wrap", marginBottom:18 }}>
         <div>
           <div style={{fontSize:11,color:blue,fontWeight:800,letterSpacing:1.5}}>INDIAN AI ANALYSIS</div>
           <div style={{display:"flex",alignItems:"center",gap:10,marginTop:5}}>
             <h1 style={{margin:0,fontSize:28,lineHeight:1.1}}>Indian Market Dashboard</h1>
-            <span style={{fontSize:11,padding:"5px 8px",borderRadius:999,border:`1px solid ${connected ? "#166534" : border}`,color:connected?green:muted,background:connected?(isNight?"#052e16":"#f0fdf4"):card2}}>{connected ? "● LIVE" : "● OFFLINE"}</span>
+            <span style={{fontSize:11,padding:"5px 9px",borderRadius:999,border:`1px solid ${connected ? "#166534" : border}`,color:connected?green:muted,background:connected?(isNight?"#052e16":"#f0fdf4"):card2,fontWeight:800}}>{checkingConnection ? "● CHECKING" : connected ? "● ZERODHA CONNECTED" : "● NOT CONNECTED"}</span>
           </div>
-          <div style={{fontSize:12,color:muted,marginTop:7}}>{selectedProduct ? `${selectedProduct.exchange} · ${selectedProduct.tradingsymbol}` : "Select an Indian market instrument"} · Auto refresh 30s</div>
+          <div style={{fontSize:12,color:muted,marginTop:7}}>{selectedProduct ? `${selectedProduct.exchange} · ${selectedProduct.tradingsymbol}` : "Connect Zerodha to access Indian market data"} · Auto refresh 30s</div>
         </div>
         <div style={{display:"flex",gap:9,alignItems:"center",flexWrap:"wrap"}}>
-          <div style={{padding:"9px 12px",border:`1px solid ${border}`,borderRadius:10,background:card,fontSize:12}}><span style={{display:"inline-block",width:7,height:7,borderRadius:"50%",background:connected?green:red,marginRight:7}}/>{connected ? profile?.user_name || profile?.user_id || "Zerodha Connected" : "Zerodha not connected"}</div>
-          {!connected && <button onClick={doLogin} style={buttonStyle(isNight,true)}>Connect Zerodha</button>}
-          <button onClick={loadProfile} style={buttonStyle(isNight)}>Refresh</button>
+          <div style={{padding:"9px 12px",border:`1px solid ${connected ? "#166534" : border}`,borderRadius:10,background:card,fontSize:12}}><span style={{display:"inline-block",width:7,height:7,borderRadius:"50%",background:connected?green:red,marginRight:7}}/>{checkingConnection ? "Checking Zerodha..." : connected ? profile?.user_name || profile?.user_id || "Zerodha Connected" : "Zerodha not connected"}</div>
+          {!connected && !checkingConnection && <button onClick={doLogin} disabled={loginInProgress} style={{...buttonStyle(isNight,true),opacity:loginInProgress?.65:1,cursor:loginInProgress?"wait":"pointer"}}>{loginInProgress ? "Waiting for Zerodha..." : "Connect Zerodha"}</button>}
+          <button onClick={()=>loadProfile(true)} disabled={checkingConnection} style={{...buttonStyle(isNight),opacity:checkingConnection?.6:1}}>↻ Check</button>
           <button onClick={onLogout} style={buttonStyle(isNight)}>Logout</button>
         </div>
       </div>
 
-      {error && <div style={{marginBottom:14,padding:"11px 14px",borderRadius:11,border:"1px solid #ef4444",color:red,background:isNight?"#2a0c0c":"#fff1f2",fontSize:13}}>{error}</div>}
+      {error && connected && <div style={{marginBottom:14,padding:"11px 14px",borderRadius:11,border:"1px solid #ef4444",color:red,background:isNight?"#2a0c0c":"#fff1f2",fontSize:13}}>{error}</div>}
 
-      <div style={{...section,padding:14,marginBottom:16,display:"grid",gridTemplateColumns:"140px 150px minmax(260px,1fr) 150px",gap:10}}>
+      {!connected && !checkingConnection && <div style={{...section,padding:26,marginBottom:18,background:isNight?"linear-gradient(135deg,#0a101b,#0d1726)":"linear-gradient(135deg,#ffffff,#f7fbff)",border:`1px solid ${isNight?"#26364d":"#dbe7f5"}`}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:24,flexWrap:"wrap"}}>
+          <div style={{display:"flex",gap:17,alignItems:"flex-start",maxWidth:760}}>
+            <div style={{width:54,height:54,borderRadius:16,display:"grid",placeItems:"center",background:isNight?"#17243a":"#eaf2ff",color:blue,fontSize:27,fontWeight:900}}>₹</div>
+            <div><div style={{fontSize:20,fontWeight:850}}>Connect your Zerodha account</div><div style={{fontSize:13,color:muted,lineHeight:1.6,marginTop:6}}>Your website login is separate from Zerodha. Connect Zerodha only when you want to load Indian market instruments and charts.</div><div style={{display:"flex",gap:16,flexWrap:"wrap",marginTop:11,fontSize:11,color:muted}}><span>✓ Secure Zerodha login</span><span>✓ Automatic connection check</span><span>✓ Market data unlocks after connection</span></div></div>
+          </div>
+          <button onClick={doLogin} disabled={loginInProgress} style={{...buttonStyle(isNight,true),padding:"12px 18px",fontSize:13,opacity:loginInProgress?.65:1}}>{loginInProgress ? "Waiting for Zerodha..." : "Connect Zerodha →"}</button>
+        </div>
+        {loginInProgress && <div style={{marginTop:17,padding:"10px 12px",borderRadius:10,background:card2,border:`1px solid ${border}`,fontSize:12,color:muted}}>Complete the Zerodha login in the opened window. This dashboard will automatically detect the connection.</div>}
+      </div>}
+
+      {error && !connected && !loginInProgress && <div style={{marginBottom:14,padding:"11px 14px",borderRadius:11,border:`1px solid ${border}`,color:muted,background:card2,fontSize:12}}>Zerodha is currently not connected. Use <b style={{color:text}}>Connect Zerodha</b> above to authenticate.</div>}
+
+      <div className="indian-controls-grid" style={{...section,padding:14,marginBottom:16,display:"grid",gridTemplateColumns:"140px 150px minmax(260px,1fr) 150px",gap:10,opacity:connected?1:.48,pointerEvents:connected?"auto":"none"}}>
         <label style={labelStyle()}>Exchange<select value={exchange} onChange={e=>{setExchange(e.target.value);setSelectedProduct(null);}} style={inputStyle(card2,text,border)}><option>NSE</option><option>BSE</option><option>NFO</option><option>BFO</option><option>MCX</option><option>CDS</option></select></label>
         <label style={labelStyle()}>Category<select value={category} onChange={e=>setCategory(e.target.value)} style={inputStyle(card2,text,border)}><option>ALL</option><option>INDEX</option><option>EQUITY</option><option>FUTURES</option><option>OPTIONS</option><option>COMMODITY</option></select></label>
         <div style={{minWidth:0}}><div style={{fontSize:12,fontWeight:700,marginBottom:6}}>Instrument</div><Select value={selectedOption} options={options} isLoading={loadingProducts} isSearchable onChange={o=>setSelectedProduct(o?.product||null)} placeholder="Search NIFTY, BANKNIFTY, RELIANCE, options..." styles={selectStyles}/></div>
         <label style={labelStyle()}>Interval<select value={interval} onChange={e=>setIntervalValue(e.target.value)} style={inputStyle(card2,text,border)}><option value="minute">1 minute</option><option value="3minute">3 minutes</option><option value="5minute">5 minutes</option><option value="10minute">10 minutes</option><option value="15minute">15 minutes</option><option value="30minute">30 minutes</option><option value="60minute">60 minutes</option><option value="day">Daily</option></select></label>
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"repeat(5,minmax(140px,1fr))",gap:12,marginBottom:16}}>
+      <div className="indian-metrics-grid" style={{display:"grid",gridTemplateColumns:"repeat(5,minmax(140px,1fr))",gap:12,marginBottom:16}}>
         {metric("Last Price",last?last.toLocaleString("en-IN",{maximumFractionDigits:4}):"—",change?`${change>=0?"+":""}${change.toFixed(2)}% from previous candle`:"No data",change>=0?green:red)}
         {metric("EMA 9",ema9?ema9.toLocaleString("en-IN",{maximumFractionDigits:2}):"—",ema9>=ema20?"Above EMA 20":"Below EMA 20",ema9>=ema20?green:red)}
         {metric("EMA 20",ema20?ema20.toLocaleString("en-IN",{maximumFractionDigits:2}):"—",`${chart.length} candles loaded`,text)}
@@ -2399,7 +2538,7 @@ function IndianAnalysisDashboard({ onLogout, theme, setTheme }) {
         {metric("ATR",atr?atr.toFixed(2):"—",volume?`Volume ${volume.toLocaleString("en-IN")}`:"No volume",text)}
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) 300px",gap:16,alignItems:"stretch"}}>
+      <div className="indian-chart-grid" style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) 300px",gap:16,alignItems:"stretch"}}>
         <div style={{...section,padding:18,minWidth:0}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginBottom:12}}>
             <div><h2 style={{margin:0,fontSize:19}}>{selectedProduct?.tradingsymbol || "Select a product"}</h2><div style={{fontSize:11,color:muted,marginTop:4}}>{selectedProduct?.name || "Indian market price action"} · {interval} {lastUpdated ? `· Updated ${lastUpdated.toLocaleTimeString()}` : ""}</div></div>
@@ -2431,14 +2570,14 @@ function IndianAnalysisDashboard({ onLogout, theme, setTheme }) {
             <div style={{fontSize:11,color:muted,fontWeight:800,letterSpacing:1}}>POTENTIAL MOVE</div>
             <div style={{fontSize:22,fontWeight:900,marginTop:9}}>{atr?`${(atr*2).toFixed(2)} pts`:"—"}</div>
             <div style={{fontSize:11,color:muted,marginTop:4}}>2 × ATR reference range</div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:13}}><div style={{padding:10,borderRadius:10,background:card2}}><div style={{fontSize:10,color:muted}}>Support</div><strong>{low?low.toLocaleString("en-IN",{maximumFractionDigits:2}):"—"}</strong></div><div style={{padding:10,borderRadius:10,background:card2}}><div style={{fontSize:10,color:muted}}>Resistance</div><strong>{high?high.toLocaleString("en-IN",{maximumFractionDigits:2}):"—"}</strong></div></div>
+            <div className="indian-support-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:13}}><div style={{padding:10,borderRadius:10,background:card2}}><div style={{fontSize:10,color:muted}}>Support</div><strong>{low?low.toLocaleString("en-IN",{maximumFractionDigits:2}):"—"}</strong></div><div style={{padding:10,borderRadius:10,background:card2}}><div style={{fontSize:10,color:muted}}>Resistance</div><strong>{high?high.toLocaleString("en-IN",{maximumFractionDigits:2}):"—"}</strong></div></div>
           </div>
         </div>
       </div>
 
       <div style={{...section,padding:16,marginTop:16}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><div><div style={{fontSize:11,color:muted,fontWeight:800,letterSpacing:1}}>MARKET SNAPSHOT</div><div style={{fontSize:16,fontWeight:800,marginTop:4}}>Indian instrument details</div></div><div style={{fontSize:11,color:muted}}>{loadingProducts?"Loading products...":`${products.length} instruments available`}</div></div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(6,minmax(110px,1fr))",gap:10}}>{[["Exchange",selectedProduct?.exchange||exchange],["Symbol",selectedProduct?.tradingsymbol||"—"],["Type",selectedProduct?.instrument_type||"—"],["Expiry",selectedProduct?.expiry||"—"],["Strike",selectedProduct?.strike ? Number(selectedProduct.strike).toLocaleString("en-IN") : "—"],["OI",chart.at(-1)?.oi ? Number(chart.at(-1).oi).toLocaleString("en-IN") : "—"]].map(([k,v])=><div key={k} style={{padding:12,borderRadius:11,background:card2,border:`1px solid ${border}`}}><div style={{fontSize:10,color:muted,textTransform:"uppercase"}}>{k}</div><div style={{fontSize:13,fontWeight:800,marginTop:6,wordBreak:"break-word"}}>{v}</div></div>)}</div>
+        <div className="indian-snapshot-grid" style={{display:"grid",gridTemplateColumns:"repeat(6,minmax(110px,1fr))",gap:10}}>{[["Exchange",selectedProduct?.exchange||exchange],["Symbol",selectedProduct?.tradingsymbol||"—"],["Type",selectedProduct?.instrument_type||"—"],["Expiry",selectedProduct?.expiry||"—"],["Strike",selectedProduct?.strike ? Number(selectedProduct.strike).toLocaleString("en-IN") : "—"],["OI",chart.at(-1)?.oi ? Number(chart.at(-1).oi).toLocaleString("en-IN") : "—"]].map(([k,v])=><div key={k} style={{padding:12,borderRadius:11,background:card2,border:`1px solid ${border}`}}><div style={{fontSize:10,color:muted,textTransform:"uppercase"}}>{k}</div><div style={{fontSize:13,fontWeight:800,marginTop:6,wordBreak:"break-word"}}>{v}</div></div>)}</div>
       </div>
     </div>
   );
@@ -2478,10 +2617,24 @@ function MarketSidebar({ selectedMarket, setSelectedMarket, theme, width, setWid
   }, [collapsed, setWidth]);
 
   return (
-    <aside
-      className={`market-sidebar ${collapsed ? "collapsed" : ""}`}
-      style={{ width: collapsed ? 72 : width }}
-    >
+    <>
+      {collapsed && (
+        <button
+          type="button"
+          className="mobile-sidebar-open"
+          onClick={() => setCollapsed(false)}
+          aria-label="Open market sidebar"
+          title="Open market sidebar"
+        >
+          <PanelLeftOpen size={20} />
+          <span>Markets</span>
+        </button>
+      )}
+
+      <aside
+        className={`market-sidebar ${collapsed ? "collapsed" : ""}`}
+        style={{ width: collapsed ? 72 : width }}
+      >
       <div className="market-sidebar-header">
         {!collapsed && (
           <div>
@@ -2532,7 +2685,8 @@ function MarketSidebar({ selectedMarket, setSelectedMarket, theme, width, setWid
           <GripVertical size={16} />
         </div>
       )}
-    </aside>
+      </aside>
+    </>
   );
 }
 
