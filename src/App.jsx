@@ -23,6 +23,7 @@ import {
   TrendingDown,
   TrendingUp,
   Wifi,
+  WifiOff,
   Zap,
 } from "lucide-react";
 
@@ -469,6 +470,61 @@ const themeStyles = `
   }
 
   /* =====================================================
+     NETWORK / OFFLINE BUFFER
+  ===================================================== */
+
+  .network-status-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 20000;
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    padding: 8px 14px;
+    background: #991b1b;
+    color: #fff;
+    border-bottom: 1px solid rgba(255,255,255,.14);
+    box-shadow: 0 5px 18px rgba(0,0,0,.18);
+    font-size: 13px;
+    font-weight: 700;
+    text-align: center;
+  }
+
+  .network-status-banner.reconnected {
+    background: #166534;
+  }
+
+  .network-status-icon {
+    flex: 0 0 auto;
+    animation: networkPulse 1.2s ease-in-out infinite;
+  }
+
+  @keyframes networkPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .45; }
+  }
+
+  .buffered-data-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 8px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: rgba(245,158,11,.12);
+    border: 1px solid rgba(245,158,11,.25);
+    color: #f59e0b;
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+
+  /* =====================================================
      SCROLLBAR
   ===================================================== */
 
@@ -514,6 +570,12 @@ const themeStyles = `
 @media (min-width: 769px) { .mobile-sidebar-open { display: none; } }
 
 @media (max-width: 768px) {
+    .network-status-banner {
+      min-height: 46px;
+      font-size: 11px;
+      padding: 8px 10px;
+    }
+
     .theme-switcher {
       width: 100%;
       justify-content: center;
@@ -554,6 +616,94 @@ function ThemeSwitcher({ theme, setTheme }) {
         <Moon size={14} />
         Night
       </button>
+    </div>
+  );
+}
+
+/* =========================================================
+   NETWORK STATUS / OFFLINE BUFFER
+========================================================= */
+
+function NetworkStatus() {
+  const [online, setOnline] = useState(() => navigator.onLine);
+  const [reconnected, setReconnected] = useState(false);
+
+  useEffect(() => {
+    let reconnectTimer;
+
+    const handleOffline = () => {
+      setOnline(false);
+      setReconnected(false);
+    };
+
+    const handleOnline = () => {
+      setOnline(true);
+      setReconnected(true);
+      window.dispatchEvent(new Event("app:network-online"));
+
+      clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(() => {
+        setReconnected(false);
+      }, 3500);
+    };
+
+    window.addEventListener("offline", handleOffline);
+    window.addEventListener("online", handleOnline);
+
+    return () => {
+      clearTimeout(reconnectTimer);
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("online", handleOnline);
+    };
+  }, []);
+
+  if (online && !reconnected) return null;
+
+  return (
+    <div className={`network-status-banner ${reconnected ? "reconnected" : ""}`}>
+      {reconnected ? (
+        <Wifi size={17} className="network-status-icon" />
+      ) : (
+        <WifiOff size={17} className="network-status-icon" />
+      )}
+      <span>
+        {reconnected
+          ? "Internet connection restored — syncing market data..."
+          : "Internet connection lost — you are offline. Showing buffered data."}
+      </span>
+    </div>
+  );
+}
+
+
+function OnlineStatusBadge({ compact = false }) {
+  const [online, setOnline] = useState(() => navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setOnline(true);
+    const handleOffline = () => setOnline(false);
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  return (
+    <div
+      className={`online-status-badge ${online ? "is-online" : "is-offline"} ${
+        compact ? "compact" : ""
+      }`}
+      title={online ? "Internet connection is available" : "Internet connection is lost"}
+    >
+      <span className="online-status-dot-wrap">
+        <span className="online-status-dot-ping" />
+        <span className="online-status-dot" />
+      </span>
+      <span>{online ? "You are online" : "You are offline"}</span>
     </div>
   );
 }
@@ -604,6 +754,7 @@ function LoginPage({ onLogin, theme, setTheme }) {
   return (
     <div className="crypto-app theme-dark login-background min-h-screen">
       <style>{themeStyles}</style>
+      <NetworkStatus />
 
       <div className={`crypto-app min-h-screen login-background ${
         theme === "night" ? "theme-night" : "theme-day"
@@ -1340,8 +1491,24 @@ function Dashboard({ onLogout, theme, setTheme }) {
     localStorage.getItem("selectedTimeframe") || "5m"
   );
 
-  const [products, setProducts] = useState([]);
-  const [analysis, setAnalysis] = useState(null);
+  const [products, setProducts] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("cryptoProductsCache") || "[]");
+    } catch {
+      return [];
+    }
+  });
+  const [analysis, setAnalysis] = useState(() => {
+    try {
+      return JSON.parse(
+        localStorage.getItem(
+          `cryptoAnalysisCache:${localStorage.getItem("selectedSymbol") || "BTCUSD"}:${localStorage.getItem("selectedTimeframe") || "5m"}`
+        ) || "null"
+      );
+    } catch {
+      return null;
+    }
+  });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -1359,9 +1526,12 @@ function Dashboard({ onLogout, theme, setTheme }) {
 
   useEffect(() => {
     const loadProducts = async () => {
+      if (!navigator.onLine) return;
+
       try {
         const response = await fetch(
-          `${API_BASE}/api/products`
+          `${API_BASE}/api/products`,
+          { cache: "no-store" }
         );
 
         if (!response.ok) {
@@ -1375,20 +1545,18 @@ function Dashboard({ onLogout, theme, setTheme }) {
           data?.products ||
           [];
 
-        setProducts(
-          productList.map((item) => ({
-            value:
-              typeof item === "string"
-                ? item
-                : item.symbol,
-            label:
-              typeof item === "string"
-                ? item
-                : item.symbol,
-          }))
-        );
+        const normalized = productList.map((item) => ({
+          value: typeof item === "string" ? item : item.symbol,
+          label: typeof item === "string" ? item : item.symbol,
+        }));
+
+        setProducts(normalized);
+        localStorage.setItem("cryptoProductsCache", JSON.stringify(normalized));
       } catch (err) {
-        console.error(err);
+        console.error("Product load error:", err);
+        if (!navigator.onLine) {
+          setError("Internet connection lost. Showing buffered products.");
+        }
       }
     };
 
@@ -1396,27 +1564,39 @@ function Dashboard({ onLogout, theme, setTheme }) {
   }, []);
 
   const fetchAnalysis = async () => {
+    if (!navigator.onLine) {
+      setLoading(false);
+      setRefreshing(false);
+      setError("Internet connection lost. Showing buffered market data.");
+      return;
+    }
+
     try {
       setRefreshing(true);
       setError("");
 
       const response = await fetch(
-        `${API_BASE}/api/analysis/${symbol}?timeframe=${timeframe}`
+        `${API_BASE}/api/analysis/${symbol}?timeframe=${timeframe}`,
+        { cache: "no-store" }
       );
 
       if (!response.ok) {
-        throw new Error(
-          `API Error: ${response.status}`
-        );
+        throw new Error(`API Error: ${response.status}`);
       }
 
       const data = await response.json();
 
       setAnalysis(data);
+      localStorage.setItem(
+        `cryptoAnalysisCache:${symbol}:${timeframe}`,
+        JSON.stringify(data)
+      );
     } catch (err) {
       console.error(err);
       setError(
-        "Unable to fetch market analysis."
+        navigator.onLine
+          ? "Unable to fetch market analysis. Showing the last available data."
+          : "Internet connection lost. Showing buffered market data."
       );
     } finally {
       setLoading(false);
@@ -1432,7 +1612,16 @@ function Dashboard({ onLogout, theme, setTheme }) {
       30000
     );
 
-    return () => clearInterval(interval);
+    const handleReconnect = () => {
+      fetchAnalysis();
+    };
+
+    window.addEventListener("app:network-online", handleReconnect);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("app:network-online", handleReconnect);
+    };
   }, [symbol, timeframe]);
 
   if (loading && !analysis) {
@@ -1511,16 +1700,7 @@ function Dashboard({ onLogout, theme, setTheme }) {
 
             <div className="hidden h-8 w-px bg-[var(--border)] sm:block" />
 
-            <div className="flex items-center gap-2 rounded-xl border border-green-500/20 bg-green-500/5 px-3 py-2">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
-              </span>
-
-              <span className="text-xs font-medium text-green-400">
-                You are online
-              </span>
-            </div>
+            <OnlineStatusBadge />
 
             <button
               onClick={onLogout}
@@ -2164,6 +2344,67 @@ const MARKET_SIDEBAR_CSS = `
 .market-sidebar.collapsed .market-sidebar-item { justify-content: center; padding: 10px; }
 .market-sidebar-icon { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; flex: 0 0 auto; font-weight: 900; background: rgba(100,116,139,.12); }
 .market-sidebar-item.active .market-sidebar-icon { background: rgba(255,255,255,.18); }
+
+.online-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 7px 11px;
+  border-radius: 12px;
+  border: 1px solid;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: all .2s ease;
+}
+.online-status-badge.is-online {
+  color: #16a34a;
+  background: rgba(34,197,94,.06);
+  border-color: rgba(34,197,94,.20);
+}
+.online-status-badge.is-offline {
+  color: #dc2626;
+  background: rgba(220,38,38,.08);
+  border-color: rgba(220,38,38,.25);
+}
+.online-status-dot-wrap {
+  position: relative;
+  display: inline-flex;
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+}
+.online-status-dot, .online-status-dot-ping {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+}
+.online-status-dot {
+  position: relative;
+}
+.is-online .online-status-dot { background: #22c55e; }
+.is-offline .online-status-dot { background: #ef4444; }
+.is-online .online-status-dot-ping {
+  background: #22c55e;
+  animation: onlineStatusPing 1.5s infinite;
+}
+.is-offline .online-status-dot-ping {
+  display: none;
+}
+@keyframes onlineStatusPing {
+  0% { transform: scale(1); opacity: .7; }
+  75%, 100% { transform: scale(2.1); opacity: 0; }
+}
+.online-status-badge.compact {
+  min-height: 28px;
+  padding: 5px 8px;
+  border: 0;
+  background: transparent;
+  font-size: 11px;
+}
+
 .market-sidebar-footer { position: absolute; left: 12px; right: 12px; bottom: 18px; display: flex; align-items: center; gap: 8px; font-size: 11px; opacity: .65; }
 .market-online-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 4px rgba(34,197,94,.12); }
 .market-sidebar-resizer { position: absolute; top: 0; right: -8px; width: 16px; height: 100%; cursor: col-resize; display: grid; place-items: center; opacity: 0; color: #64748b; }
@@ -2284,12 +2525,24 @@ function IndianAnalysisDashboard({ onLogout, theme, setTheme }) {
   const [exchange, setExchange] = useState(localStorage.getItem("kiteExchange") || "NSE");
   const [category, setCategory] = useState(localStorage.getItem("kiteCategory") || "ALL");
   const [search, setSearch] = useState("");
-  const [products, setProducts] = useState([]);
+  const [products, setProducts] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("kiteProductsCache") || "[]");
+    } catch {
+      return [];
+    }
+  });
   const [selectedProduct, setSelectedProduct] = useState(() => {
     try { return JSON.parse(localStorage.getItem("kiteSelectedProduct") || "null"); } catch { return null; }
   });
   const [interval, setIntervalValue] = useState(localStorage.getItem("kiteInterval") || "5minute");
-  const [chart, setChart] = useState([]);
+  const [chart, setChart] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("kiteChartCache") || "[]");
+    } catch {
+      return [];
+    }
+  });
   const [profile, setProfile] = useState(null);
   const [connected, setConnected] = useState(false);
   const [checkingConnection, setCheckingConnection] = useState(true);
@@ -2325,6 +2578,11 @@ function IndianAnalysisDashboard({ onLogout, theme, setTheme }) {
   };
 
   const loadProfile = async (showError = false) => {
+    if (!navigator.onLine) {
+      setCheckingConnection(false);
+      if (showError) setError("Internet connection lost. Zerodha status is temporarily unavailable.");
+      return false;
+    }
     setCheckingConnection(true);
     try {
       const res = await fetch(`${API_BASE}/api/kite/profile`, { cache: "no-store" });
@@ -2345,6 +2603,11 @@ function IndianAnalysisDashboard({ onLogout, theme, setTheme }) {
   };
 
   const loadProducts = async () => {
+    if (!navigator.onLine) {
+      setLoadingProducts(false);
+      setError("Internet connection lost. Showing buffered Indian instruments.");
+      return;
+    }
     setLoadingProducts(true); setError("");
     try {
       const params = new URLSearchParams({ exchange, category, page: "1", limit: "500" });
@@ -2353,6 +2616,7 @@ function IndianAnalysisDashboard({ onLogout, theme, setTheme }) {
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.error || "Unable to load products");
       const list = normalizeProducts(json); setProducts(list);
+      localStorage.setItem("kiteProductsCache", JSON.stringify(list));
       if (selectedProduct) {
         const exists = list.some(p => p.tradingsymbol === selectedProduct.tradingsymbol && p.exchange === selectedProduct.exchange);
         if (!exists && list.length) setSelectedProduct(list[0]);
@@ -2360,20 +2624,42 @@ function IndianAnalysisDashboard({ onLogout, theme, setTheme }) {
         const nifty = list.find(p => p.tradingsymbol === "NIFTY 50");
         setSelectedProduct(nifty || list[0]);
       }
-    } catch (e) { setProducts([]); setError(e.message || "Unable to load Indian market products"); }
+    } catch (e) {
+      console.error("Indian product load error:", e);
+      if (!navigator.onLine) {
+        setError("Internet connection lost. Showing buffered Indian instruments.");
+      } else {
+        setError(e.message || "Unable to load Indian market products");
+      }
+    }
     finally { setLoadingProducts(false); }
   };
 
   const loadChart = async (product = selectedProduct) => {
     if (!product?.tradingsymbol) return;
+    if (!navigator.onLine) {
+      setLoadingChart(false);
+      setError("Internet connection lost. Showing buffered chart data.");
+      return;
+    }
     setLoadingChart(true); setError("");
     try {
       const params = new URLSearchParams({ exchange: product.exchange || exchange, symbol: product.tradingsymbol, interval });
       const res = await fetch(`${API_BASE}/api/kite/chart?${params.toString()}`);
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.error || "Unable to load chart");
-      setChart(normalizeChart(json)); setLastUpdated(new Date());
-    } catch (e) { setChart([]); setError(e.message || "Unable to load chart data"); }
+      const normalized = normalizeChart(json);
+      setChart(normalized);
+      localStorage.setItem("kiteChartCache", JSON.stringify(normalized));
+      setLastUpdated(new Date());
+    } catch (e) {
+      console.error("Indian chart load error:", e);
+      if (!navigator.onLine) {
+        setError("Internet connection lost. Showing buffered chart data.");
+      } else {
+        setError(e.message || "Unable to load chart data");
+      }
+    }
     finally { setLoadingChart(false); }
   };
 
@@ -2394,7 +2680,16 @@ function IndianAnalysisDashboard({ onLogout, theme, setTheme }) {
   useEffect(() => {
     if (!selectedProduct) return;
     const timer = setInterval(() => loadChart(selectedProduct), 30000);
-    return () => clearInterval(timer);
+    const handleReconnect = () => {
+      loadProfile(false);
+      loadProducts();
+      loadChart(selectedProduct);
+    };
+    window.addEventListener("app:network-online", handleReconnect);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("app:network-online", handleReconnect);
+    };
   }, [selectedProduct, interval]);
 
   const options = products.map((p, i) => ({
@@ -2667,8 +2962,7 @@ function MarketSidebar({ selectedMarket, setSelectedMarket, theme, width, setWid
 
       {!collapsed && (
         <div className="market-sidebar-footer">
-          <span className="market-online-dot" />
-          <span>Analysis system online</span>
+          <OnlineStatusBadge compact />
         </div>
       )}
 
@@ -2750,6 +3044,7 @@ export default function App() {
 
   return (
     <>
+      <NetworkStatus />
       <MarketSidebarStyles />
       <MarketSidebar
         selectedMarket={selectedMarket}
