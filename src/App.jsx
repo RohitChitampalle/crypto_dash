@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Select from "react-select";
+import { createChart, CandlestickSeries, HistogramSeries, ColorType } from "lightweight-charts";
 import {
   Activity,
   Menu,
@@ -671,39 +672,6 @@ function NetworkStatus() {
           ? "Internet connection restored — syncing market data..."
           : "Internet connection lost — you are offline. Showing buffered data."}
       </span>
-    </div>
-  );
-}
-
-
-function OnlineStatusBadge({ compact = false }) {
-  const [online, setOnline] = useState(() => navigator.onLine);
-
-  useEffect(() => {
-    const handleOnline = () => setOnline(true);
-    const handleOffline = () => setOnline(false);
-
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-
-    return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-    };
-  }, []);
-
-  return (
-    <div
-      className={`online-status-badge ${online ? "is-online" : "is-offline"} ${
-        compact ? "compact" : ""
-      }`}
-      title={online ? "Internet connection is available" : "Internet connection is lost"}
-    >
-      <span className="online-status-dot-wrap">
-        <span className="online-status-dot-ping" />
-        <span className="online-status-dot" />
-      </span>
-      <span>{online ? "You are online" : "You are offline"}</span>
     </div>
   );
 }
@@ -1700,7 +1668,16 @@ function Dashboard({ onLogout, theme, setTheme }) {
 
             <div className="hidden h-8 w-px bg-[var(--border)] sm:block" />
 
-            <OnlineStatusBadge />
+            <div className="flex items-center gap-2 rounded-xl border border-green-500/20 bg-green-500/5 px-3 py-2">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+              </span>
+
+              <span className="text-xs font-medium text-green-400">
+                You are online
+              </span>
+            </div>
 
             <button
               onClick={onLogout}
@@ -2344,67 +2321,6 @@ const MARKET_SIDEBAR_CSS = `
 .market-sidebar.collapsed .market-sidebar-item { justify-content: center; padding: 10px; }
 .market-sidebar-icon { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; flex: 0 0 auto; font-weight: 900; background: rgba(100,116,139,.12); }
 .market-sidebar-item.active .market-sidebar-icon { background: rgba(255,255,255,.18); }
-
-.online-status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 34px;
-  padding: 7px 11px;
-  border-radius: 12px;
-  border: 1px solid;
-  font-size: 12px;
-  font-weight: 700;
-  white-space: nowrap;
-  transition: all .2s ease;
-}
-.online-status-badge.is-online {
-  color: #16a34a;
-  background: rgba(34,197,94,.06);
-  border-color: rgba(34,197,94,.20);
-}
-.online-status-badge.is-offline {
-  color: #dc2626;
-  background: rgba(220,38,38,.08);
-  border-color: rgba(220,38,38,.25);
-}
-.online-status-dot-wrap {
-  position: relative;
-  display: inline-flex;
-  width: 9px;
-  height: 9px;
-  flex: 0 0 auto;
-}
-.online-status-dot, .online-status-dot-ping {
-  position: absolute;
-  width: 9px;
-  height: 9px;
-  border-radius: 999px;
-}
-.online-status-dot {
-  position: relative;
-}
-.is-online .online-status-dot { background: #22c55e; }
-.is-offline .online-status-dot { background: #ef4444; }
-.is-online .online-status-dot-ping {
-  background: #22c55e;
-  animation: onlineStatusPing 1.5s infinite;
-}
-.is-offline .online-status-dot-ping {
-  display: none;
-}
-@keyframes onlineStatusPing {
-  0% { transform: scale(1); opacity: .7; }
-  75%, 100% { transform: scale(2.1); opacity: 0; }
-}
-.online-status-badge.compact {
-  min-height: 28px;
-  padding: 5px 8px;
-  border: 0;
-  background: transparent;
-  font-size: 11px;
-}
-
 .market-sidebar-footer { position: absolute; left: 12px; right: 12px; bottom: 18px; display: flex; align-items: center; gap: 8px; font-size: 11px; opacity: .65; }
 .market-online-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 4px rgba(34,197,94,.12); }
 .market-sidebar-resizer { position: absolute; top: 0; right: -8px; width: 16px; height: 100%; cursor: col-resize; display: grid; place-items: center; opacity: 0; color: #64748b; }
@@ -2484,6 +2400,8 @@ const MARKET_SIDEBAR_CSS = `
   .indian-controls-grid { grid-template-columns: 1fr !important; }
   .indian-metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
   .indian-chart-grid { grid-template-columns: 1fr !important; }
+  .indian-dashboard .indian-chart-svg { height: 520px !important; min-height: 520px !important; }
+  .indian-dashboard .indian-chart-empty { height: 520px !important; }
   .indian-snapshot-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
   .indian-support-grid { grid-template-columns: 1fr 1fr !important; }
 
@@ -2521,6 +2439,239 @@ const MARKET_ALGOS = [
   },
 ];
 
+
+function KiteTradingChart({ data, expanded, isNight, border, muted, loading }) {
+  const containerRef = useRef(null);
+  const chartRef = useRef(null);
+  const [chartError, setChartError] = useState("");
+
+  const validData = (Array.isArray(data) ? data : [])
+    .map((c) => ({
+      timestamp: c?.timestamp || c?.date || c?.time,
+      open: Number(c?.open),
+      high: Number(c?.high),
+      low: Number(c?.low),
+      close: Number(c?.close),
+      volume: Number(c?.volume || 0),
+    }))
+    .filter((c) =>
+      c.timestamp &&
+      [c.open, c.high, c.low, c.close].every(Number.isFinite) &&
+      c.high >= c.low
+    );
+
+  useEffect(() => {
+    if (!containerRef.current || !validData.length) return;
+
+    let chart;
+    let observer;
+    let cancelled = false;
+
+    const container = containerRef.current;
+    setChartError("");
+
+    const toUnix = (value) => {
+      if (typeof value === "number" && Number.isFinite(value)) {
+        return value > 100000000000 ? Math.floor(value / 1000) : Math.floor(value);
+      }
+
+      const raw = String(value).trim();
+      if (!raw) return null;
+
+      // Kite can return ISO timestamps or date strings.
+      let ms = Date.parse(raw);
+      if (!Number.isFinite(ms)) {
+        // Handle YYYY-MM-DD HH:mm:ss explicitly.
+        const normalized = raw.replace(" ", "T");
+        ms = Date.parse(normalized);
+      }
+
+      return Number.isFinite(ms) ? Math.floor(ms / 1000) : null;
+    };
+
+    try {
+      container.innerHTML = "";
+
+      chart = createChart(container, {
+        width: Math.max(container.clientWidth || 900, 320),
+        height: Math.max(container.clientHeight || 520, 420),
+        layout: {
+          background: {
+            type: ColorType.Solid,
+            color: isNight ? "#0d1522" : "#ffffff",
+          },
+          textColor: isNight ? "#cbd5e1" : "#475569",
+        },
+        grid: {
+          vertLines: { color: isNight ? "rgba(148,163,184,.10)" : "rgba(100,116,139,.10)" },
+          horzLines: { color: isNight ? "rgba(148,163,184,.10)" : "rgba(100,116,139,.10)" },
+        },
+        rightPriceScale: {
+          borderColor: isNight ? "#334155" : "#e2e8f0",
+          scaleMargins: { top: 0.08, bottom: 0.22 },
+        },
+        timeScale: {
+          borderColor: isNight ? "#334155" : "#e2e8f0",
+          timeVisible: true,
+          secondsVisible: false,
+          rightOffset: 5,
+          barSpacing: 8,
+          minBarSpacing: 2,
+        },
+        crosshair: {
+          vertLine: { color: "#64748b", width: 1, style: 2, labelBackgroundColor: "#334155" },
+          horzLine: { color: "#64748b", width: 1, style: 2, labelBackgroundColor: "#334155" },
+        },
+        handleScroll: true,
+        handleScale: true,
+      });
+
+      const candleSeries = chart.addSeries(CandlestickSeries, {
+        upColor: "#22c55e",
+        downColor: "#ef4444",
+        borderUpColor: "#22c55e",
+        borderDownColor: "#ef4444",
+        wickUpColor: "#22c55e",
+        wickDownColor: "#ef4444",
+        priceLineVisible: true,
+        lastValueVisible: true,
+      });
+
+      const volumeSeries = chart.addSeries(HistogramSeries, {
+        priceFormat: { type: "volume" },
+        priceScaleId: "volume",
+        lastValueVisible: false,
+        priceLineVisible: false,
+      });
+
+      chart.priceScale("volume").applyOptions({
+        scaleMargins: { top: 0.80, bottom: 0 },
+        borderVisible: false,
+      });
+
+      const seen = new Set();
+      const candles = [];
+      const volumes = [];
+
+      [...validData]
+        .sort((a, b) => toUnix(a.timestamp) - toUnix(b.timestamp))
+        .forEach((c) => {
+          const time = toUnix(c.timestamp);
+          if (!Number.isFinite(time) || seen.has(time)) return;
+          seen.add(time);
+
+          candles.push({
+            time,
+            open: c.open,
+            high: c.high,
+            low: c.low,
+            close: c.close,
+          });
+
+          volumes.push({
+            time,
+            value: Math.max(0, Number(c.volume) || 0),
+            color: c.close >= c.open
+              ? "rgba(34,197,94,.45)"
+              : "rgba(239,68,68,.45)",
+          });
+        });
+
+      if (!candles.length) {
+        throw new Error("No valid candle timestamps were returned by the Zerodha API.");
+      }
+
+      candleSeries.setData(candles);
+      volumeSeries.setData(volumes);
+      chart.timeScale().fitContent();
+
+      chartRef.current = chart;
+
+      const resize = () => {
+        if (!chart || !containerRef.current || cancelled) return;
+        const width = Math.max(containerRef.current.clientWidth || 320, 320);
+        const height = Math.max(containerRef.current.clientHeight || 420, 420);
+        chart.applyOptions({ width, height });
+      };
+
+      observer = new ResizeObserver(resize);
+      observer.observe(container);
+      window.addEventListener("resize", resize);
+      requestAnimationFrame(resize);
+    } catch (error) {
+      console.error("KiteTradingChart error:", error);
+      if (!cancelled) setChartError(error?.message || "Unable to render chart");
+    }
+
+    return () => {
+      cancelled = true;
+      if (observer) observer.disconnect();
+      window.removeEventListener("resize", () => {});
+      if (chart) {
+        try { chart.remove(); } catch (_) {}
+      }
+      chartRef.current = null;
+    };
+  }, [data, expanded, isNight]);
+
+  const height = expanded ? "min(82vh,900px)" : "min(68vh,620px)";
+  const minHeight = expanded ? 620 : 420;
+
+  // If Lightweight Charts cannot initialize, keep the Zerodha data visible
+  // instead of leaving a blank white area.
+  if (chartError) {
+    const rows = validData.slice(-80);
+    const max = rows.length ? Math.max(...rows.map(c => c.high)) : 1;
+    const min = rows.length ? Math.min(...rows.map(c => c.low)) : 0;
+    const range = Math.max(max - min, 1);
+    const W = 1200;
+    const H = expanded ? 760 : 520;
+    const left = 25;
+    const right = 70;
+    const top = 25;
+    const bottom = 45;
+    const plotW = W - left - right;
+    const plotH = H - top - bottom;
+    const x = (i) => left + (i / Math.max(rows.length - 1, 1)) * plotW;
+    const y = (v) => top + ((max - v) / range) * plotH;
+
+    return (
+      <div style={{width:"100%",height,minHeight,background:isNight?"#0d1522":"#fff",border:`1px solid ${border}`,borderRadius:12,overflow:"hidden",position:"relative"}}>
+        <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",height:"100%",display:"block"}}>
+          {[0,1,2,3,4].map(i => {
+            const p = max - (range * i / 4);
+            return <g key={i}>
+              <line x1={left} x2={W-right} y1={y(p)} y2={y(p)} stroke={isNight?"#253247":"#e2e8f0"} strokeDasharray="4 5" />
+              <text x={W-right+8} y={y(p)+4} fontSize="11" fill={muted}>{p.toFixed(2)}</text>
+            </g>;
+          })}
+          {rows.map((c,i) => {
+            const xx=x(i);
+            const up=c.close>=c.open;
+            const color=up?"#22c55e":"#ef4444";
+            const bodyTop=y(Math.max(c.open,c.close));
+            const bodyBottom=y(Math.min(c.open,c.close));
+            return <g key={`${c.timestamp}-${i}`}>
+              <line x1={xx} x2={xx} y1={y(c.high)} y2={y(c.low)} stroke={color} strokeWidth="1.4" />
+              <rect x={xx-4} y={bodyTop} width="8" height={Math.max(2,bodyBottom-bodyTop)} fill={color} rx="1" />
+            </g>;
+          })}
+        </svg>
+        <div style={{position:"absolute",top:10,left:12,fontSize:11,color:muted,background:isNight?"rgba(15,23,42,.9)":"rgba(255,255,255,.92)",padding:"6px 9px",borderRadius:7,border:`1px solid ${border}`}}>
+          Chart fallback · {rows.length} Zerodha candles
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{position:"relative",width:"100%",height,minHeight,overflow:"hidden",background:isNight?"#0d1522":"#fff",borderRadius:12,border:`1px solid ${border}`}}>
+      <div ref={containerRef} style={{width:"100%",height:"100%",minHeight}} />
+      {loading && <div style={{position:"absolute",top:10,left:12,padding:"6px 9px",borderRadius:7,background:isNight?"rgba(15,23,42,.85)":"rgba(255,255,255,.88)",border:`1px solid ${border}`,color:muted,fontSize:11,zIndex:5}}>Updating...</div>}
+    </div>
+  );
+}
+
 function IndianAnalysisDashboard({ onLogout, theme, setTheme }) {
   const [exchange, setExchange] = useState(localStorage.getItem("kiteExchange") || "NSE");
   const [category, setCategory] = useState(localStorage.getItem("kiteCategory") || "ALL");
@@ -2551,6 +2702,7 @@ function IndianAnalysisDashboard({ onLogout, theme, setTheme }) {
   const [loadingChart, setLoadingChart] = useState(false);
   const [error, setError] = useState("");
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [chartExpanded, setChartExpanded] = useState(false);
 
   const isNight = theme === "night";
   const bg = isNight ? "#02040a" : "#f5f7fb";
@@ -2615,13 +2767,14 @@ function IndianAnalysisDashboard({ onLogout, theme, setTheme }) {
       const res = await fetch(`${API_BASE}/api/kite/products?${params.toString()}`);
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.error || "Unable to load products");
-      const list = normalizeProducts(json); setProducts(list);
+      const list = normalizeProducts(json).map(p => ({ ...p, tradingsymbol: p.tradingsymbol || p.symbol || p.name || "" })).filter(p => p.tradingsymbol); setProducts(list);
       localStorage.setItem("kiteProductsCache", JSON.stringify(list));
       if (selectedProduct) {
-        const exists = list.some(p => p.tradingsymbol === selectedProduct.tradingsymbol && p.exchange === selectedProduct.exchange);
+        const selectedExistingSymbol = selectedProduct.tradingsymbol || selectedProduct.symbol;
+        const exists = list.some(p => p.tradingsymbol === selectedExistingSymbol && p.exchange === selectedProduct.exchange);
         if (!exists && list.length) setSelectedProduct(list[0]);
       } else if (list.length) {
-        const nifty = list.find(p => p.tradingsymbol === "NIFTY 50");
+        const nifty = list.find(p => p.tradingsymbol === "NIFTY 50" || p.tradingsymbol === "NIFTY");
         setSelectedProduct(nifty || list[0]);
       }
     } catch (e) {
@@ -2636,18 +2789,51 @@ function IndianAnalysisDashboard({ onLogout, theme, setTheme }) {
   };
 
   const loadChart = async (product = selectedProduct) => {
-    if (!product?.tradingsymbol) return;
+    const symbol = product?.tradingsymbol || product?.symbol;
+    if (!product || !symbol) return;
+
     if (!navigator.onLine) {
       setLoadingChart(false);
       setError("Internet connection lost. Showing buffered chart data.");
       return;
     }
-    setLoadingChart(true); setError("");
+
+    setLoadingChart(true);
+    setError("");
+
     try {
-      const params = new URLSearchParams({ exchange: product.exchange || exchange, symbol: product.tradingsymbol, interval });
-      const res = await fetch(`${API_BASE}/api/kite/chart?${params.toString()}`);
-      const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.error || "Unable to load chart");
+      const params = new URLSearchParams({
+        exchange: product.exchange || exchange,
+        symbol,
+        interval
+      });
+
+      if (product.instrument_token) {
+        params.set("instrument_token", String(product.instrument_token));
+      }
+
+      const res = await fetch(`${API_BASE}/api/kite/chart?${params.toString()}`, {
+        cache: "no-store"
+      });
+
+      const contentType = (res.headers.get("content-type") || "").toLowerCase();
+      const responseText = await res.text();
+
+      if (!contentType.includes("application/json")) {
+        throw new Error(`Chart API returned ${res.status} non-JSON response`);
+      }
+
+      let json;
+      try {
+        json = JSON.parse(responseText);
+      } catch {
+        throw new Error("Chart API returned invalid JSON");
+      }
+
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error || `Unable to load chart (${res.status})`);
+      }
+
       const normalized = normalizeChart(json);
       setChart(normalized);
       localStorage.setItem("kiteChartCache", JSON.stringify(normalized));
@@ -2659,8 +2845,9 @@ function IndianAnalysisDashboard({ onLogout, theme, setTheme }) {
       } else {
         setError(e.message || "Unable to load chart data");
       }
+    } finally {
+      setLoadingChart(false);
     }
-    finally { setLoadingChart(false); }
   };
 
   useEffect(() => { loadProfile(false); }, []);
@@ -2692,21 +2879,27 @@ function IndianAnalysisDashboard({ onLogout, theme, setTheme }) {
     };
   }, [selectedProduct, interval]);
 
-  const options = products
-    .filter((p) => p && (p.tradingsymbol || p.symbol || p.name))
-    .map((p, i) => {
-      const tradingSymbol = p.tradingsymbol || p.symbol || p.name || "Unknown Instrument";
-      const displayName = p.name && p.name !== tradingSymbol ? p.name : "";
-      const instrumentType = p.instrument_type || "";
-      const labelParts = [tradingSymbol, displayName, instrumentType].filter(Boolean);
+  const normalizedProducts = products.map((p) => ({
+    ...p,
+    tradingsymbol: p.tradingsymbol || p.symbol || p.name || ""
+  }));
 
-      return {
-        value: `${p.exchange || ""}:${tradingSymbol}:${instrumentType}:${p.expiry || ""}:${p.strike || ""}:${i}`,
-        label: labelParts.join(" — "),
-        product: { ...p, tradingsymbol: tradingSymbol, name: displayName || tradingSymbol },
-      };
-    });
-  const selectedOption = selectedProduct ? options.find(o => o.product.tradingsymbol === selectedProduct.tradingsymbol && o.product.exchange === selectedProduct.exchange) || { value: `${selectedProduct.exchange}:${selectedProduct.tradingsymbol}`, label: selectedProduct.tradingsymbol, product: selectedProduct } : null;
+  const options = normalizedProducts
+    .filter(p => p.tradingsymbol)
+    .map((p, i) => ({
+      value: `${p.exchange || ""}:${p.tradingsymbol}:${p.instrument_type || ""}:${p.expiry || ""}:${p.strike || ""}:${i}`,
+      label: `${p.tradingsymbol}${p.name && p.name !== p.tradingsymbol ? ` — ${p.name}` : ""}${p.instrument_type ? ` · ${p.instrument_type}` : ""}`,
+      product: p
+    }));
+
+  const selectedSymbol = selectedProduct?.tradingsymbol || selectedProduct?.symbol || selectedProduct?.name || "";
+  const selectedOption = selectedProduct
+    ? options.find(o => (o.product.tradingsymbol || o.product.symbol) === selectedSymbol && o.product.exchange === selectedProduct.exchange) || {
+        value: `${selectedProduct.exchange || exchange}:${selectedSymbol}`,
+        label: selectedSymbol,
+        product: { ...selectedProduct, tradingsymbol: selectedSymbol }
+      }
+    : null;
 
   const closes = chart.map(c => c.close).filter(Number.isFinite);
   const last = closes.at(-1) || 0;
@@ -2742,7 +2935,7 @@ function IndianAnalysisDashboard({ onLogout, theme, setTheme }) {
   const actionColor = action === "BUY" ? green : action === "SELL" ? red : "#f59e0b";
   const confidence = Math.min(99, Math.round(50 + Math.abs(momentum) * 8 + Math.abs(rsi - 50) * 0.6));
 
-  const chartW = 1200, chartH = 430, pad = { l: 60, r: 20, t: 25, b: 45 };
+  const chartW = 1400, chartH = 620, pad = { l: 70, r: 28, t: 28, b: 55 };
   const range = Math.max(0.000001, high-low);
   const xFor = i => pad.l + (i / Math.max(1, chart.length-1)) * (chartW-pad.l-pad.r);
   const yFor = price => pad.t + (high-price)/range * (chartH-pad.t-pad.b);
@@ -2802,7 +2995,7 @@ function IndianAnalysisDashboard({ onLogout, theme, setTheme }) {
             <h1 style={{margin:0,fontSize:28,lineHeight:1.1}}>Indian Market Dashboard</h1>
             <span style={{fontSize:11,padding:"5px 9px",borderRadius:999,border:`1px solid ${connected ? "#166534" : border}`,color:connected?green:muted,background:connected?(isNight?"#052e16":"#f0fdf4"):card2,fontWeight:800}}>{checkingConnection ? "● CHECKING" : connected ? "● ZERODHA CONNECTED" : "● NOT CONNECTED"}</span>
           </div>
-          <div style={{fontSize:12,color:muted,marginTop:7}}>{selectedProduct ? `${selectedProduct.exchange} · ${selectedProduct.tradingsymbol}` : "Connect Zerodha to access Indian market data"} · Auto refresh 30s</div>
+          <div style={{fontSize:12,color:muted,marginTop:7}}>{selectedProduct ? `${selectedProduct.exchange} · ${selectedSymbol}` : "Connect Zerodha to access Indian market data"} · Auto refresh 30s</div>
         </div>
         <div style={{display:"flex",gap:9,alignItems:"center",flexWrap:"wrap"}}>
           <div style={{padding:"9px 12px",border:`1px solid ${connected ? "#166534" : border}`,borderRadius:10,background:card,fontSize:12}}><span style={{display:"inline-block",width:7,height:7,borderRadius:"50%",background:connected?green:red,marginRight:7}}/>{checkingConnection ? "Checking Zerodha..." : connected ? profile?.user_name || profile?.user_id || "Zerodha Connected" : "Zerodha not connected"}</div>
@@ -2843,21 +3036,42 @@ function IndianAnalysisDashboard({ onLogout, theme, setTheme }) {
       </div>
 
       <div className="indian-chart-grid" style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) 300px",gap:16,alignItems:"stretch"}}>
-        <div style={{...section,padding:18,minWidth:0}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginBottom:12}}>
-            <div><h2 style={{margin:0,fontSize:19}}>{selectedProduct?.tradingsymbol || "Select a product"}</h2><div style={{fontSize:11,color:muted,marginTop:4}}>{selectedProduct?.name && selectedProduct.name !== selectedProduct?.tradingsymbol ? selectedProduct.name : "Indian market price action"} · {interval} {lastUpdated ? `· Updated ${lastUpdated.toLocaleTimeString()}` : ""}</div></div>
-            <button onClick={()=>loadChart()} style={buttonStyle(isNight)}>{loadingChart?"Loading...":"↻ Refresh"}</button>
+        <div className="indian-chart-card" style={{...section,padding:18,minWidth:0}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginBottom:12,flexWrap:"wrap"}}>
+            <div><h2 style={{margin:0,fontSize:19}}>{selectedSymbol || "Select a product"}</h2><div style={{fontSize:11,color:muted,marginTop:4}}>{selectedProduct?.name || "Indian market price action"} · {interval} {lastUpdated ? `· Updated ${lastUpdated.toLocaleTimeString()}` : ""}</div></div>
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              <button onClick={()=>setChartExpanded(v=>!v)} style={{...buttonStyle(isNight),minWidth:105}} title={chartExpanded ? "Make chart smaller" : "Make chart bigger"}>
+                {chartExpanded ? "↙ Compact" : "↗ Expand"}
+              </button>
+              <button onClick={()=>loadChart()} style={buttonStyle(isNight)}>{loadingChart?"Loading...":"↻ Refresh"}</button>
+            </div>
           </div>
           {chart.length ? (
-            <div style={{width:"100%",overflow:"hidden",background:card2,borderRadius:12,border:`1px solid ${border}`}}>
-              <svg viewBox={`0 0 ${chartW} ${chartH}`} style={{display:"block",width:"100%",height:"min(48vw,430px)",minHeight:300}}>
-                {gridPrices.map((p,i)=><g key={i}><line x1={pad.l} x2={chartW-pad.r} y1={yFor(p)} y2={yFor(p)} stroke={border} strokeDasharray="4 6"/><text x={chartW-5} y={yFor(p)+4} textAnchor="end" fontSize="11" fill={muted}>{p.toLocaleString("en-IN",{maximumFractionDigits:2})}</text></g>)}
-                {visible.map((c,i)=>{ const x=xFor(i+offset), up=c.close>=c.open, bodyY=Math.min(yFor(c.open),yFor(c.close)), bodyH=Math.max(2,Math.abs(yFor(c.close)-yFor(c.open))); return <g key={i}><line x1={x} x2={x} y1={yFor(c.high)} y2={yFor(c.low)} stroke={up?green:red} strokeWidth="1.5"/><rect x={x-candleWidth/2} y={bodyY} width={candleWidth} height={bodyH} rx="1" fill={up?green:red}/></g>; })}
-                {last>0 && <><line x1={pad.l} x2={chartW-pad.r} y1={yFor(last)} y2={yFor(last)} stroke={blue} strokeDasharray="5 5"/><rect x={chartW-pad.r-88} y={yFor(last)-10} width="83" height="20" rx="5" fill={blue}/><text x={chartW-pad.r-46} y={yFor(last)+4} textAnchor="middle" fontSize="11" fill="#fff">{last.toLocaleString("en-IN",{maximumFractionDigits:2})}</text></>}
-              </svg>
-              <div style={{padding:"8px 12px 12px",fontSize:11,color:muted}}>Green candles = bullish · Red candles = bearish · Showing latest {visible.length} candles</div>
+            <KiteTradingChart
+              data={chart}
+              expanded={chartExpanded}
+              isNight={isNight}
+              border={border}
+              muted={muted}
+              loading={loadingChart}
+            />
+          ) : (
+            <div
+              className="indian-chart-empty"
+              style={{
+                height: chartExpanded ? "min(82vh,900px)" : "min(68vh,620px)",
+                minHeight: chartExpanded ? 620 : 420,
+                display: "grid",
+                placeItems: "center",
+                color: muted,
+                background: card2,
+                borderRadius: 12,
+                border: `1px solid ${border}`
+              }}
+            >
+              {loadingChart ? "Loading Indian market data..." : "No chart data available"}
             </div>
-          ) : <div style={{height:430,display:"grid",placeItems:"center",color:muted,background:card2,borderRadius:12,border:`1px solid ${border}`}}>{loadingChart?"Loading Indian market data...":"No chart data available"}</div>}
+          )}
         </div>
 
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
@@ -2971,7 +3185,8 @@ function MarketSidebar({ selectedMarket, setSelectedMarket, theme, width, setWid
 
       {!collapsed && (
         <div className="market-sidebar-footer">
-          <OnlineStatusBadge compact />
+          <span className="market-online-dot" />
+          <span>Analysis system online</span>
         </div>
       )}
 
