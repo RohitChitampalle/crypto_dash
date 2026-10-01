@@ -2440,10 +2440,16 @@ const MARKET_ALGOS = [
 ];
 
 
-function KiteTradingChart({ data, expanded, isNight, border, muted, loading }) {
+function KiteTradingChart({ data, expanded, isNight, border, muted, loading, onCompact }) {
   const containerRef = useRef(null);
   const chartRef = useRef(null);
   const [chartError, setChartError] = useState("");
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = expanded ? "hidden" : previousOverflow;
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, [expanded]);
 
   const validData = (Array.isArray(data) ? data : [])
     .map((c) => ({
@@ -2583,7 +2589,18 @@ function KiteTradingChart({ data, expanded, isNight, border, muted, loading }) {
 
       candleSeries.setData(candles);
       volumeSeries.setData(volumes);
-      chart.timeScale().fitContent();
+
+      // Compact = show the complete dataset.
+      // Expanded = bring the chart to the front and zoom into the latest candles.
+      if (expanded) {
+        const visibleBars = Math.min(90, candles.length);
+        chart.timeScale().setVisibleLogicalRange({
+          from: Math.max(0, candles.length - visibleBars),
+          to: candles.length + 3,
+        });
+      } else {
+        chart.timeScale().fitContent();
+      }
 
       chartRef.current = chart;
 
@@ -2614,8 +2631,8 @@ function KiteTradingChart({ data, expanded, isNight, border, muted, loading }) {
     };
   }, [data, expanded, isNight]);
 
-  const height = expanded ? "min(82vh,900px)" : "min(68vh,620px)";
-  const minHeight = expanded ? 620 : 420;
+  const height = expanded ? "calc(100vh - 86px)" : "min(68vh,620px)";
+  const minHeight = expanded ? 520 : 420;
 
   // If Lightweight Charts cannot initialize, keep the Zerodha data visible
   // instead of leaving a blank white area.
@@ -2636,7 +2653,22 @@ function KiteTradingChart({ data, expanded, isNight, border, muted, loading }) {
     const y = (v) => top + ((max - v) / range) * plotH;
 
     return (
-      <div style={{width:"100%",height,minHeight,background:isNight?"#0d1522":"#fff",border:`1px solid ${border}`,borderRadius:12,overflow:"hidden",position:"relative"}}>
+      <div style={{
+        position: expanded ? "fixed" : "relative",
+        inset: expanded ? 0 : "auto",
+        zIndex: expanded ? 9999 : "auto",
+        width: "100%",
+        height: expanded ? "100vh" : height,
+        minHeight: expanded ? 0 : minHeight,
+        padding: expanded ? 14 : 0,
+        background: isNight ? "rgba(2,6,14,.96)" : "rgba(248,250,252,.97)",
+        overflow: "hidden",
+      }}>
+        {expanded && <div style={{height:58,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 10px",marginBottom:10,color:isNight?"#e2e8f0":"#0f172a",fontWeight:800}}>
+          <div style={{fontSize:16}}>Indian Market Chart · Expanded</div>
+          <button onClick={onCompact} style={{border:`1px solid ${border}`,background:isNight?"#0f172a":"#fff",color:isNight?"#e2e8f0":"#0f172a",borderRadius:9,padding:"9px 14px",fontWeight:800,cursor:"pointer"}}>↙ Compact</button>
+        </div>}
+        <div style={{position:"relative",width:"100%",height:expanded?"calc(100vh - 82px)":"100%",background:isNight?"#0d1522":"#fff",border:`1px solid ${border}`,borderRadius:expanded?10:12,overflow:"hidden"}}>
         <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",height:"100%",display:"block"}}>
           {[0,1,2,3,4].map(i => {
             const p = max - (range * i / 4);
@@ -2658,16 +2690,33 @@ function KiteTradingChart({ data, expanded, isNight, border, muted, loading }) {
           })}
         </svg>
         <div style={{position:"absolute",top:10,left:12,fontSize:11,color:muted,background:isNight?"rgba(15,23,42,.9)":"rgba(255,255,255,.92)",padding:"6px 9px",borderRadius:7,border:`1px solid ${border}`}}>
-          Chart fallback · {rows.length} Zerodha candles
+          Chart fallback · {rows.length} Zerodha candles · {expanded ? "Zoomed" : "Compact"}
+        </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div style={{position:"relative",width:"100%",height,minHeight,overflow:"hidden",background:isNight?"#0d1522":"#fff",borderRadius:12,border:`1px solid ${border}`}}>
-      <div ref={containerRef} style={{width:"100%",height:"100%",minHeight}} />
-      {loading && <div style={{position:"absolute",top:10,left:12,padding:"6px 9px",borderRadius:7,background:isNight?"rgba(15,23,42,.85)":"rgba(255,255,255,.88)",border:`1px solid ${border}`,color:muted,fontSize:11,zIndex:5}}>Updating...</div>}
+    <div style={{
+      position: expanded ? "fixed" : "relative",
+      inset: expanded ? 0 : "auto",
+      zIndex: expanded ? 9999 : "auto",
+      width: "100%",
+      height: expanded ? "100vh" : height,
+      minHeight: expanded ? 0 : minHeight,
+      padding: expanded ? 14 : 0,
+      background: expanded ? (isNight ? "rgba(2,6,14,.96)" : "rgba(248,250,252,.97)") : (isNight ? "#0d1522" : "#fff"),
+      overflow: "hidden",
+    }}>
+      {expanded && <div style={{height:58,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 10px",color:isNight?"#e2e8f0":"#0f172a",fontWeight:800}}>
+        <div style={{fontSize:16}}>Indian Market Chart · Expanded · Zoomed</div>
+        <button onClick={onCompact} style={{border:`1px solid ${border}`,background:isNight?"#0f172a":"#fff",color:isNight?"#e2e8f0":"#0f172a",borderRadius:9,padding:"9px 14px",fontWeight:800,cursor:"pointer"}}>↙ Compact</button>
+      </div>}
+      <div style={{position:"relative",width:"100%",height:expanded?"calc(100vh - 82px)":"100%",minHeight:expanded?0:minHeight,overflow:"hidden",background:isNight?"#0d1522":"#fff",borderRadius:12,border:`1px solid ${border}`}}>
+        <div ref={containerRef} style={{width:"100%",height:"100%",minHeight:expanded?0:minHeight}} />
+        {loading && <div style={{position:"absolute",top:10,left:12,padding:"6px 9px",borderRadius:7,background:isNight?"rgba(15,23,42,.85)":"rgba(255,255,255,.88)",border:`1px solid ${border}`,color:muted,fontSize:11,zIndex:5}}>Updating...</div>}
+      </div>
     </div>
   );
 }
@@ -3054,6 +3103,7 @@ function IndianAnalysisDashboard({ onLogout, theme, setTheme }) {
               border={border}
               muted={muted}
               loading={loadingChart}
+              onCompact={() => setChartExpanded(false)}
             />
           ) : (
             <div
