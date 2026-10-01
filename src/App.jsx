@@ -2692,11 +2692,20 @@ function IndianAnalysisDashboard({ onLogout, theme, setTheme }) {
     };
   }, [selectedProduct, interval]);
 
-  const options = products.map((p, i) => ({
-    value: `${p.exchange}:${p.tradingsymbol}:${p.instrument_type || ""}:${p.expiry || ""}:${p.strike || ""}:${i}`,
-    label: `${p.tradingsymbol}${p.name && p.name !== p.tradingsymbol ? ` — ${p.name}` : ""}${p.instrument_type ? ` · ${p.instrument_type}` : ""}`,
-    product: p
-  }));
+  const options = products
+    .filter((p) => p && (p.tradingsymbol || p.symbol || p.name))
+    .map((p, i) => {
+      const tradingSymbol = p.tradingsymbol || p.symbol || p.name || "Unknown Instrument";
+      const displayName = p.name && p.name !== tradingSymbol ? p.name : "";
+      const instrumentType = p.instrument_type || "";
+      const labelParts = [tradingSymbol, displayName, instrumentType].filter(Boolean);
+
+      return {
+        value: `${p.exchange || ""}:${tradingSymbol}:${instrumentType}:${p.expiry || ""}:${p.strike || ""}:${i}`,
+        label: labelParts.join(" — "),
+        product: { ...p, tradingsymbol: tradingSymbol, name: displayName || tradingSymbol },
+      };
+    });
   const selectedOption = selectedProduct ? options.find(o => o.product.tradingsymbol === selectedProduct.tradingsymbol && o.product.exchange === selectedProduct.exchange) || { value: `${selectedProduct.exchange}:${selectedProduct.tradingsymbol}`, label: selectedProduct.tradingsymbol, product: selectedProduct } : null;
 
   const closes = chart.map(c => c.close).filter(Number.isFinite);
@@ -2836,7 +2845,7 @@ function IndianAnalysisDashboard({ onLogout, theme, setTheme }) {
       <div className="indian-chart-grid" style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) 300px",gap:16,alignItems:"stretch"}}>
         <div style={{...section,padding:18,minWidth:0}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginBottom:12}}>
-            <div><h2 style={{margin:0,fontSize:19}}>{selectedProduct?.tradingsymbol || "Select a product"}</h2><div style={{fontSize:11,color:muted,marginTop:4}}>{selectedProduct?.name || "Indian market price action"} · {interval} {lastUpdated ? `· Updated ${lastUpdated.toLocaleTimeString()}` : ""}</div></div>
+            <div><h2 style={{margin:0,fontSize:19}}>{selectedProduct?.tradingsymbol || "Select a product"}</h2><div style={{fontSize:11,color:muted,marginTop:4}}>{selectedProduct?.name && selectedProduct.name !== selectedProduct?.tradingsymbol ? selectedProduct.name : "Indian market price action"} · {interval} {lastUpdated ? `· Updated ${lastUpdated.toLocaleTimeString()}` : ""}</div></div>
             <button onClick={()=>loadChart()} style={buttonStyle(isNight)}>{loadingChart?"Loading...":"↻ Refresh"}</button>
           </div>
           {chart.length ? (
