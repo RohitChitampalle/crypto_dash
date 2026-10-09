@@ -2280,6 +2280,115 @@ function Dashboard({ onLogout, theme, setTheme }) {
 
 
 
+
+/* =========================================================
+   STRATEGY MAKER — user-defined trading rules
+========================================================= */
+function StrategyMaker({ theme, onLogout, setTheme }) {
+  const [name, setName] = useState("My Trading Strategy");
+  const [market, setMarket] = useState("Crypto");
+  const [symbol, setSymbol] = useState("BTCUSD");
+  const [timeframe, setTimeframe] = useState("5m");
+  const [entrySide, setEntrySide] = useState("BUY");
+  const [stopLoss, setStopLoss] = useState("1.5");
+  const [takeProfit, setTakeProfit] = useState("3");
+  const [riskPercent, setRiskPercent] = useState("1");
+  const [notes, setNotes] = useState("");
+  const [rules, setRules] = useState([
+    { id: 1, indicator: "EMA 9", operator: "crosses above", target: "EMA 20", group: "Entry" },
+    { id: 2, indicator: "RSI 14", operator: "is below", target: "30", group: "Entry" },
+  ]);
+  const [saved, setSaved] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("cryptoSavedStrategies") || "[]"); }
+    catch { return []; }
+  });
+  const [message, setMessage] = useState("");
+  const isNight = theme === "night";
+  const panel = isNight ? "#080d18" : "#ffffff";
+  const page = isNight ? "#02040a" : "#f6f8fb";
+  const text = isNight ? "#e8eef7" : "#0f172a";
+  const muted = isNight ? "#94a3b8" : "#64748b";
+  const border = isNight ? "#243247" : "#e2e8f0";
+  const field = { width: "100%", marginTop: 6, padding: "11px 12px", borderRadius: 10, border: `1px solid ${border}`, background: isNight ? "#030711" : "#f8fafc", color: text, outline: "none", boxSizing: "border-box" };
+  const label = { display: "block", color: muted, fontSize: 12, fontWeight: 700 };
+  const card = { background: panel, border: `1px solid ${border}`, borderRadius: 16, padding: 20, minWidth: 0 };
+  const button = (primary = false) => ({ border: `1px solid ${primary ? "#2563eb" : border}`, background: primary ? "#2563eb" : panel, color: primary ? "#fff" : text, padding: "10px 14px", borderRadius: 10, cursor: "pointer", fontWeight: 700, fontSize: 13 });
+  const updateRule = (id, key, value) => setRules(prev => prev.map(rule => rule.id === id ? { ...rule, [key]: value } : rule));
+  const addRule = (group) => setRules(prev => [...prev, { id: Date.now() + Math.random(), indicator: "MACD", operator: "is above", target: "Signal Line", group }]);
+  const saveStrategy = () => {
+    if (!name.trim() || !symbol.trim()) { setMessage("Enter a strategy name and symbol first."); return; }
+    const strategy = { id: Date.now(), name: name.trim(), market, symbol: symbol.trim().toUpperCase(), timeframe, entrySide, stopLoss: Number(stopLoss), takeProfit: Number(takeProfit), riskPercent: Number(riskPercent), notes, rules, createdAt: new Date().toISOString() };
+    const next = [strategy, ...saved];
+    setSaved(next);
+    localStorage.setItem("cryptoSavedStrategies", JSON.stringify(next));
+    setMessage("Strategy saved in this browser.");
+  };
+  const deleteStrategy = (id) => {
+    const next = saved.filter(item => item.id !== id);
+    setSaved(next);
+    localStorage.setItem("cryptoSavedStrategies", JSON.stringify(next));
+  };
+  const loadStrategy = (item) => {
+    setName(item.name); setMarket(item.market); setSymbol(item.symbol); setTimeframe(item.timeframe);
+    setEntrySide(item.entrySide); setStopLoss(String(item.stopLoss)); setTakeProfit(String(item.takeProfit));
+    setRiskPercent(String(item.riskPercent)); setNotes(item.notes || ""); setRules(item.rules || []);
+    setMessage(`Loaded “${item.name}” into the editor.`);
+  };
+  return (
+    <div className={`crypto-app ${isNight ? "theme-night" : "theme-day"}`} style={{ minHeight: "100vh", background: page, color: text, padding: "26px clamp(14px, 3vw, 34px) 42px" }}>
+      <style>{themeStyles}</style>
+      <div style={{ maxWidth: 1440, margin: "0 auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: 24 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
+            <div style={{ width: 48, height: 48, borderRadius: 14, display: "grid", placeItems: "center", background: "#2563eb", color: "white" }}><Brain size={24} /></div>
+            <div><div style={{ color: muted, fontSize: 11, fontWeight: 800, letterSpacing: ".12em" }}>TRADING WORKSPACE</div><h1 style={{ margin: "4px 0 0", fontSize: 28, fontWeight: 850 }}>Strategy Maker</h1><div style={{ marginTop: 5, color: muted, fontSize: 13 }}>Turn your trading ideas into clear, editable rule sets.</div></div>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><ThemeSwitcher theme={theme} setTheme={setTheme} /><button style={button()} onClick={onLogout}><LogOut size={14} style={{ verticalAlign: "middle", marginRight: 6 }} />Logout</button></div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.5fr) minmax(280px, .8fr)", gap: 18, alignItems: "start" }}>
+          <section style={card}>
+            <h2 style={{ margin: "0 0 18px", fontSize: 17 }}>Build your strategy</h2>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14 }}>
+              <label style={label}>Strategy name<input style={field} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. EMA RSI breakout" /></label>
+              <label style={label}>Market<select style={field} value={market} onChange={e => { setMarket(e.target.value); if (e.target.value === "Crypto" && !symbol.match(/USD$/)) setSymbol("BTCUSD"); }}><option>Crypto</option><option>NSE Equity</option><option>NFO Futures</option><option>NFO Options</option><option>BSE</option><option>MCX</option></select></label>
+              <label style={label}>Symbol / instrument<input style={field} value={symbol} onChange={e => setSymbol(e.target.value)} placeholder="BTCUSD / RELIANCE / NIFTY..." /></label>
+              <label style={label}>Timeframe<select style={field} value={timeframe} onChange={e => setTimeframe(e.target.value)}>{TIMEFRAMES.map(tf => <option key={tf}>{tf}</option>)}</select></label>
+              <label style={label}>Trade direction<select style={field} value={entrySide} onChange={e => setEntrySide(e.target.value)}><option>BUY</option><option>SELL</option><option>Both</option></select></label>
+              <label style={label}>Stop-loss (%)<input style={field} type="number" min="0" step="0.1" value={stopLoss} onChange={e => setStopLoss(e.target.value)} /></label>
+              <label style={label}>Take-profit (%)<input style={field} type="number" min="0" step="0.1" value={takeProfit} onChange={e => setTakeProfit(e.target.value)} /></label>
+              <label style={label}>Risk per trade (%)<input style={field} type="number" min="0.1" max="100" step="0.1" value={riskPercent} onChange={e => setRiskPercent(e.target.value)} /></label>
+            </div>
+            <div style={{ marginTop: 24, paddingTop: 20, borderTop: `1px solid ${border}` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}><h3 style={{ margin: 0, fontSize: 15 }}>Rule builder</h3><div style={{ display: "flex", gap: 8 }}><button style={button()} onClick={() => addRule("Entry")}>+ Entry rule</button><button style={button()} onClick={() => addRule("Exit")}>+ Exit rule</button></div></div>
+              <p style={{ margin: "0 0 14px", color: muted, fontSize: 12 }}>Choose an indicator, condition, and comparison value. Rules are saved as your strategy specification; they are not executed automatically.</p>
+              {rules.map((rule, index) => <div key={rule.id} style={{ display: "grid", gridTemplateColumns: "80px minmax(110px, 1fr) minmax(115px, 1fr) minmax(100px, 1fr) 34px", gap: 8, alignItems: "end", padding: 12, border: `1px solid ${border}`, borderRadius: 12, marginBottom: 9 }}>
+                <div style={{ color: rule.group === "Entry" ? "#16a34a" : "#d97706", fontSize: 11, fontWeight: 850, paddingBottom: 12 }}>{rule.group.toUpperCase()} {index + 1}</div>
+                <label style={label}>Indicator<select style={field} value={rule.indicator} onChange={e => updateRule(rule.id, "indicator", e.target.value)}>{["EMA 9", "EMA 20", "SMA 50", "RSI 14", "MACD", "Signal Line", "Bollinger Bands", "ATR", "VWAP", "Volume", "Price", "Supertrend"].map(x => <option key={x}>{x}</option>)}</select></label>
+                <label style={label}>Condition<select style={field} value={rule.operator} onChange={e => updateRule(rule.id, "operator", e.target.value)}>{["is above", "is below", "crosses above", "crosses below", "equals", "increases", "decreases"].map(x => <option key={x}>{x}</option>)}</select></label>
+                <label style={label}>Compare with<input style={field} value={rule.target} onChange={e => updateRule(rule.id, "target", e.target.value)} placeholder="e.g. EMA 20 / 30" /></label>
+                <button aria-label="Remove rule" title="Remove rule" onClick={() => setRules(prev => prev.filter(r => r.id !== rule.id))} style={{ ...button(), color: "#ef4444", padding: "10px 8px" }}>×</button>
+              </div>)}
+              {!rules.length && <div style={{ border: `1px dashed ${border}`, borderRadius: 12, padding: 22, color: muted, textAlign: "center" }}>No rules yet. Add an entry or exit rule.</div>}
+            </div>
+            <label style={{ ...label, marginTop: 18 }}>Your idea / notes<textarea style={{ ...field, minHeight: 90, resize: "vertical" }} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Example: Enter long after EMA 9 crosses above EMA 20 and RSI confirms momentum. Exit at target or stop-loss." /></label>
+            {message && <div role="status" style={{ marginTop: 14, padding: "10px 12px", borderRadius: 10, background: isNight ? "#10251c" : "#f0fdf4", color: message.includes("Enter") ? "#dc2626" : "#16a34a", fontSize: 13 }}>{message}</div>}
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}><button style={button(true)} onClick={saveStrategy}><CheckCircle2 size={15} style={{ verticalAlign: "middle", marginRight: 7 }} />Save strategy</button></div>
+          </section>
+          <aside style={{ display: "grid", gap: 18 }}>
+            <section style={card}><h2 style={{ margin: "0 0 14px", fontSize: 16 }}>Strategy preview</h2><div style={{ display: "grid", gap: 12, fontSize: 13 }}>
+              {[ ["Market", market], ["Instrument", symbol.toUpperCase() || "—"], ["Timeframe", timeframe], ["Direction", entrySide], ["Entry rules", rules.filter(r => r.group === "Entry").length], ["Exit rules", rules.filter(r => r.group === "Exit").length], ["Stop-loss", `${stopLoss || 0}%`], ["Take-profit", `${takeProfit || 0}%`], ["Risk per trade", `${riskPercent || 0}%`] ].map(([k,v]) => <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 12, borderBottom: `1px solid ${border}`, paddingBottom: 9 }}><span style={{ color: muted }}>{k}</span><strong style={{ textAlign: "right" }}>{v}</strong></div>)}
+            </div><div style={{ marginTop: 14, color: muted, fontSize: 11, lineHeight: 1.5 }}>Preview only. Validate with historical data and paper trading before risking capital.</div></section>
+            <section style={card}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}><h2 style={{ margin: 0, fontSize: 16 }}>Saved strategies</h2><span style={{ color: muted, fontSize: 12 }}>{saved.length}</span></div>
+              {!saved.length ? <p style={{ color: muted, fontSize: 13, lineHeight: 1.6 }}>Your saved strategies will appear here. They are stored in this browser on this device.</p> : <div style={{ display: "grid", gap: 10, marginTop: 14 }}>{saved.map(item => <div key={item.id} style={{ padding: 12, border: `1px solid ${border}`, borderRadius: 12 }}><div style={{ fontWeight: 800, fontSize: 13 }}>{item.name}</div><div style={{ marginTop: 5, color: muted, fontSize: 11 }}>{item.market} · {item.symbol} · {item.timeframe}</div><div style={{ display: "flex", gap: 8, marginTop: 10 }}><button style={button()} onClick={() => loadStrategy(item)}>Load</button><button style={button()} onClick={() => deleteStrategy(item.id)}>Delete</button></div></div>)}</div>}
+            </section>
+          </aside>
+        </div>
+        <div style={{ marginTop: 18, color: muted, fontSize: 11, lineHeight: 1.6 }}>This builder creates and stores rule definitions only. It does not calculate indicator signals, backtest performance, or place live orders yet.</div>
+      </div>
+    </div>
+  );
+}
+
 const MARKET_SIDEBAR_CSS = `
 .market-sidebar {
   position: fixed;
@@ -2436,6 +2545,11 @@ const MARKET_ALGOS = [
     id: "indian",
     label: "Indian Analysis Algo",
     icon: "₹",
+  },
+  {
+    id: "strategy",
+    label: "Strategy Maker",
+    icon: "⚙",
   },
 ];
 
@@ -3342,8 +3456,14 @@ export default function App() {
             theme={theme}
             setTheme={setTheme}
           />
-        ) : (
+        ) : selectedMarket === "indian" ? (
           <IndianAnalysisDashboard
+            onLogout={handleLogout}
+            theme={theme}
+            setTheme={setTheme}
+          />
+        ) : (
+          <StrategyMaker
             onLogout={handleLogout}
             theme={theme}
             setTheme={setTheme}
