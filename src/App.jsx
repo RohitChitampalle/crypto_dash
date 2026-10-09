@@ -2303,6 +2303,13 @@ function StrategyMaker({ theme, onLogout, setTheme }) {
     catch { return []; }
   });
   const [message, setMessage] = useState("");
+  const [activeSession, setActiveSession] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("activePaperStrategy") || "null"); }
+    catch { return null; }
+  });
+  const [paperStatus, setPaperStatus] = useState(null);
+  const [monitorBusy, setMonitorBusy] = useState(false);
+  const [liveConfirm, setLiveConfirm] = useState(false);
   const isNight = theme === "night";
   const panel = isNight ? "#080d18" : "#ffffff";
   const page = isNight ? "#02040a" : "#f6f8fb";
@@ -2328,12 +2335,90 @@ function StrategyMaker({ theme, onLogout, setTheme }) {
     setSaved(next);
     localStorage.setItem("cryptoSavedStrategies", JSON.stringify(next));
   };
-  const loadStrategy = (item) => {
+  const loadStrategy = async (item) => {
     setName(item.name); setMarket(item.market); setSymbol(item.symbol); setTimeframe(item.timeframe);
     setEntrySide(item.entrySide); setStopLoss(String(item.stopLoss)); setTakeProfit(String(item.takeProfit));
     setRiskPercent(String(item.riskPercent)); setNotes(item.notes || ""); setRules(item.rules || []);
-    setMessage(`Loaded “${item.name}” into the editor.`);
+    setMonitorBusy(true);
+    try {
+      const response = await fetch(`${API_BASE}/api/strategy/paper/activate`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ strategy: item, mode: "paper" })
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.success) throw new Error(payload.error || `Activation failed (${response.status})`);
+      const session = { strategyId: String(item.id), strategy: item, activatedAt: new Date().toISOString() };
+      setActiveSession(session);
+      localStorage.setItem("activePaperStrategy", JSON.stringify(session));
+      setPaperStatus(payload.session || null);
+      setMessage(`Paper strategy “${item.name}” activated. No live orders will be sent.`);
+    } catch (error) {
+      setMessage(`Could not activate paper strategy: ${error.message}. Ensure the Flask paper-strategy blueprint is registered.`);
+    } finally { setMonitorBusy(false); }
   };
+
+  const stopPaperStrategy = async () => {
+    if (!activeSession) return;
+    try {
+      const response = await fetch(`${API_BASE}/api/strategy/paper/stop`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ strategy_id: activeSession.strategyId })
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.success) throw new Error(payload.error || "Stop failed");
+      setPaperStatus(payload.session || paperStatus);
+      setActiveSession(null);
+      localStorage.removeItem("activePaperStrategy");
+      setMessage("Paper strategy stopped. No live orders were placed.");
+    } catch (error) { setMessage(`Unable to stop paper strategy: ${error.message}`); }
+  };
+
+  // The browser supplies fresh candles to the backend paper evaluator while this tab is open.
+  // This endpoint only simulates trades; it never calls Zerodha order placement.
+  useEffect(() => {
+    if (!activeSession?.strategy) return;
+    let cancelled = false;
+    const strategy = activeSession.strategy;
+    const mapInterval = { "5s":"5second", "1m":"minute", "3m":"3minute", "5m":"5minute", "15m":"15minute", "30m":"30minute", "1h":"60minute", "2h":"120minute", "4h":"240minute", "1d":"day", "1w":"week" };
+    const normalizeCandles = (payload) => {
+      const root = payload?.data ?? payload?.candles ?? payload?.result ?? payload;
+      const list = Array.isArray(root) ? root : (root?.candles || root?.data || root?.history || []);
+      return list.map((c) => {
+        if (Array.isArray(c)) return { timestamp: c[0], open: Number(c[1]), high: Number(c[2]), low: Number(c[3]), close: Number(c[4]), volume: Number(c[5] || 0) };
+        return { timestamp: c.timestamp ?? c.time ?? c.date, open: Number(c.open), high: Number(c.high), low: Number(c.low), close: Number(c.close), volume: Number(c.volume || 0) };
+      }).filter(c => Number.isFinite(c.close) && Number.isFinite(c.open) && Number.isFinite(c.high) && Number.isFinite(c.low) && c.timestamp != null);
+    };
+    const tick = async () => {
+      if (cancelled || !navigator.onLine) return;
+      try {
+        let url;
+        if (strategy.market === "Crypto") {
+          url = `${API_BASE}/api/market/candle?symbol=${encodeURIComponent(strategy.symbol)}&timeframe=${encodeURIComponent(strategy.timeframe)}`;
+        } else {
+          const exchange = ["NFO Futures", "NFO Options"].includes(strategy.market) ? "NFO" : strategy.market === "NSE Equity" ? "NSE" : strategy.market;
+          const params = new URLSearchParams({ exchange, symbol: strategy.symbol, interval: mapInterval[strategy.timeframe] || strategy.timeframe });
+          url = `${API_BASE}/api/kite/chart?${params.toString()}`;
+        }
+        const marketResponse = await fetch(url, { cache: "no-store" });
+        const marketPayload = await marketResponse.json();
+        if (!marketResponse.ok || marketPayload?.success === false) throw new Error(marketPayload?.error || `Candle fetch failed (${marketResponse.status})`);
+        const candles = normalizeCandles(marketPayload).slice(-250);
+        if (candles.length < 30) throw new Error(`Not enough valid candles to evaluate rules (${candles.length} received)`);
+        const evalResponse = await fetch(`${API_BASE}/api/strategy/paper/tick`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ strategy_id: activeSession.strategyId, candles })
+        });
+        const result = await evalResponse.json();
+        if (!evalResponse.ok || !result.success) throw new Error(result.error || `Paper evaluation failed (${evalResponse.status})`);
+        if (!cancelled) setPaperStatus(result.session);
+      } catch (error) {
+        if (!cancelled) setMessage(`Paper monitor: ${error.message}`);
+      }
+    };
+    tick();
+    const timer = setInterval(tick, 15000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [activeSession]);
   return (
     <div className={`crypto-app ${isNight ? "theme-night" : "theme-day"}`} style={{ minHeight: "100vh", background: page, color: text, padding: "26px clamp(14px, 3vw, 34px) 42px" }}>
       <style>{themeStyles}</style>
@@ -2353,17 +2438,17 @@ function StrategyMaker({ theme, onLogout, setTheme }) {
               <label style={label}>Market<select style={field} value={market} onChange={e => { setMarket(e.target.value); if (e.target.value === "Crypto" && !symbol.match(/USD$/)) setSymbol("BTCUSD"); }}><option>Crypto</option><option>NSE Equity</option><option>NFO Futures</option><option>NFO Options</option><option>BSE</option><option>MCX</option></select></label>
               <label style={label}>Symbol / instrument<input style={field} value={symbol} onChange={e => setSymbol(e.target.value)} placeholder="BTCUSD / RELIANCE / NIFTY..." /></label>
               <label style={label}>Timeframe<select style={field} value={timeframe} onChange={e => setTimeframe(e.target.value)}>{TIMEFRAMES.map(tf => <option key={tf}>{tf}</option>)}</select></label>
-              <label style={label}>Trade direction<select style={field} value={entrySide} onChange={e => setEntrySide(e.target.value)}><option>BUY</option><option>SELL</option><option>Both</option></select></label>
+              <label style={label}>Trade direction<select style={field} value={entrySide} onChange={e => setEntrySide(e.target.value)}><option>BUY</option><option>SELL</option></select></label>
               <label style={label}>Stop-loss (%)<input style={field} type="number" min="0" step="0.1" value={stopLoss} onChange={e => setStopLoss(e.target.value)} /></label>
               <label style={label}>Take-profit (%)<input style={field} type="number" min="0" step="0.1" value={takeProfit} onChange={e => setTakeProfit(e.target.value)} /></label>
               <label style={label}>Risk per trade (%)<input style={field} type="number" min="0.1" max="100" step="0.1" value={riskPercent} onChange={e => setRiskPercent(e.target.value)} /></label>
             </div>
             <div style={{ marginTop: 24, paddingTop: 20, borderTop: `1px solid ${border}` }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}><h3 style={{ margin: 0, fontSize: 15 }}>Rule builder</h3><div style={{ display: "flex", gap: 8 }}><button style={button()} onClick={() => addRule("Entry")}>+ Entry rule</button><button style={button()} onClick={() => addRule("Exit")}>+ Exit rule</button></div></div>
-              <p style={{ margin: "0 0 14px", color: muted, fontSize: 12 }}>Choose an indicator, condition, and comparison value. Rules are saved as your strategy specification; they are not executed automatically.</p>
+              <p style={{ margin: "0 0 14px", color: muted, fontSize: 12 }}>Choose indicators and conditions. Loading a saved strategy activates a paper-only monitor; no Zerodha live order is sent.</p>
               {rules.map((rule, index) => <div key={rule.id} style={{ display: "grid", gridTemplateColumns: "80px minmax(110px, 1fr) minmax(115px, 1fr) minmax(100px, 1fr) 34px", gap: 8, alignItems: "end", padding: 12, border: `1px solid ${border}`, borderRadius: 12, marginBottom: 9 }}>
                 <div style={{ color: rule.group === "Entry" ? "#16a34a" : "#d97706", fontSize: 11, fontWeight: 850, paddingBottom: 12 }}>{rule.group.toUpperCase()} {index + 1}</div>
-                <label style={label}>Indicator<select style={field} value={rule.indicator} onChange={e => updateRule(rule.id, "indicator", e.target.value)}>{["EMA 9", "EMA 20", "SMA 50", "RSI 14", "MACD", "Signal Line", "Bollinger Bands", "ATR", "VWAP", "Volume", "Price", "Supertrend"].map(x => <option key={x}>{x}</option>)}</select></label>
+                <label style={label}>Indicator<select style={field} value={rule.indicator} onChange={e => updateRule(rule.id, "indicator", e.target.value)}>{["EMA 9", "EMA 20", "SMA 50", "RSI 14", "MACD", "Signal Line", "Bollinger Bands", "ATR", "VWAP", "Volume", "Price"].map(x => <option key={x}>{x}</option>)}</select></label>
                 <label style={label}>Condition<select style={field} value={rule.operator} onChange={e => updateRule(rule.id, "operator", e.target.value)}>{["is above", "is below", "crosses above", "crosses below", "equals", "increases", "decreases"].map(x => <option key={x}>{x}</option>)}</select></label>
                 <label style={label}>Compare with<input style={field} value={rule.target} onChange={e => updateRule(rule.id, "target", e.target.value)} placeholder="e.g. EMA 20 / 30" /></label>
                 <button aria-label="Remove rule" title="Remove rule" onClick={() => setRules(prev => prev.filter(r => r.id !== rule.id))} style={{ ...button(), color: "#ef4444", padding: "10px 8px" }}>×</button>
@@ -2375,15 +2460,33 @@ function StrategyMaker({ theme, onLogout, setTheme }) {
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}><button style={button(true)} onClick={saveStrategy}><CheckCircle2 size={15} style={{ verticalAlign: "middle", marginRight: 7 }} />Save strategy</button></div>
           </section>
           <aside style={{ display: "grid", gap: 18 }}>
+            <section style={{ ...card, borderColor: activeSession ? "#16a34a" : border }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                <h2 style={{ margin: 0, fontSize: 16 }}>Paper execution</h2>
+                <span style={{ fontSize: 10, fontWeight: 900, padding: "5px 8px", borderRadius: 999, background: activeSession ? (isNight ? "#052e16" : "#dcfce7") : (isNight ? "#172033" : "#f1f5f9"), color: activeSession ? "#16a34a" : muted }}>{activeSession ? "MONITORING" : "STOPPED"}</span>
+              </div>
+              <p style={{ color: muted, fontSize: 12, lineHeight: 1.6, margin: "10px 0 14px" }}>Paper trading only. Loading a strategy starts rule monitoring and virtual trades. It cannot place live Zerodha orders.</p>
+              {activeSession && <div style={{ display: "grid", gap: 9, fontSize: 12, marginBottom: 14 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}><span style={{ color: muted }}>Active strategy</span><strong>{activeSession.strategy?.name}</strong></div>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}><span style={{ color: muted }}>Last price</span><strong>{paperStatus?.last_price ?? "Waiting for candles"}</strong></div>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}><span style={{ color: muted }}>Position</span><strong>{paperStatus?.position?.side || "FLAT"}</strong></div>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}><span style={{ color: muted }}>Closed paper trades</span><strong>{paperStatus?.closed_trades?.length ?? 0}</strong></div>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}><span style={{ color: muted }}>Realized P/L (per unit)</span><strong style={{ color: Number(paperStatus?.realized_pnl || 0) >= 0 ? "#16a34a" : "#ef4444" }}>{Number(paperStatus?.realized_pnl || 0).toFixed(2)}</strong></div>
+                {paperStatus?.last_signal && <div style={{ padding: 10, borderRadius: 10, background: isNight ? "#111827" : "#f8fafc", color: muted }}>{paperStatus.last_signal}</div>}
+                <button style={{ ...button(), borderColor: "#dc2626", color: "#dc2626" }} onClick={stopPaperStrategy}>Stop paper monitoring</button>
+              </div>}
+              <label style={{ display: "flex", alignItems: "flex-start", gap: 8, color: muted, fontSize: 11, lineHeight: 1.5 }}><input type="checkbox" checked={liveConfirm} onChange={e => setLiveConfirm(e.target.checked)} />I understand live orders require a separate explicit confirmation and are disabled in this paper-only build.</label>
+              <div style={{ marginTop: 10, fontSize: 11, color: muted }}>Live order placement: <strong style={{ color: "#dc2626" }}>DISABLED</strong></div>
+            </section>
             <section style={card}><h2 style={{ margin: "0 0 14px", fontSize: 16 }}>Strategy preview</h2><div style={{ display: "grid", gap: 12, fontSize: 13 }}>
               {[ ["Market", market], ["Instrument", symbol.toUpperCase() || "—"], ["Timeframe", timeframe], ["Direction", entrySide], ["Entry rules", rules.filter(r => r.group === "Entry").length], ["Exit rules", rules.filter(r => r.group === "Exit").length], ["Stop-loss", `${stopLoss || 0}%`], ["Take-profit", `${takeProfit || 0}%`], ["Risk per trade", `${riskPercent || 0}%`] ].map(([k,v]) => <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 12, borderBottom: `1px solid ${border}`, paddingBottom: 9 }}><span style={{ color: muted }}>{k}</span><strong style={{ textAlign: "right" }}>{v}</strong></div>)}
             </div><div style={{ marginTop: 14, color: muted, fontSize: 11, lineHeight: 1.5 }}>Preview only. Validate with historical data and paper trading before risking capital.</div></section>
             <section style={card}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}><h2 style={{ margin: 0, fontSize: 16 }}>Saved strategies</h2><span style={{ color: muted, fontSize: 12 }}>{saved.length}</span></div>
-              {!saved.length ? <p style={{ color: muted, fontSize: 13, lineHeight: 1.6 }}>Your saved strategies will appear here. They are stored in this browser on this device.</p> : <div style={{ display: "grid", gap: 10, marginTop: 14 }}>{saved.map(item => <div key={item.id} style={{ padding: 12, border: `1px solid ${border}`, borderRadius: 12 }}><div style={{ fontWeight: 800, fontSize: 13 }}>{item.name}</div><div style={{ marginTop: 5, color: muted, fontSize: 11 }}>{item.market} · {item.symbol} · {item.timeframe}</div><div style={{ display: "flex", gap: 8, marginTop: 10 }}><button style={button()} onClick={() => loadStrategy(item)}>Load</button><button style={button()} onClick={() => deleteStrategy(item.id)}>Delete</button></div></div>)}</div>}
+              {!saved.length ? <p style={{ color: muted, fontSize: 13, lineHeight: 1.6 }}>Your saved strategies will appear here. They are stored in this browser on this device.</p> : <div style={{ display: "grid", gap: 10, marginTop: 14 }}>{saved.map(item => <div key={item.id} style={{ padding: 12, border: `1px solid ${border}`, borderRadius: 12 }}><div style={{ fontWeight: 800, fontSize: 13 }}>{item.name}</div><div style={{ marginTop: 5, color: muted, fontSize: 11 }}>{item.market} · {item.symbol} · {item.timeframe}</div><div style={{ display: "flex", gap: 8, marginTop: 10 }}><button style={button()} disabled={monitorBusy} onClick={() => loadStrategy(item)}>{monitorBusy ? "Activating…" : "Load & activate paper"}</button><button style={button()} onClick={() => deleteStrategy(item.id)}>Delete</button></div></div>)}</div>}
             </section>
           </aside>
         </div>
-        <div style={{ marginTop: 18, color: muted, fontSize: 11, lineHeight: 1.6 }}>This builder creates and stores rule definitions only. It does not calculate indicator signals, backtest performance, or place live orders yet.</div>
+        <div style={{ marginTop: 18, color: muted, fontSize: 11, lineHeight: 1.6 }}>Loading a saved strategy activates a paper-only monitor that evaluates incoming candles and simulates entries/exits. Monitoring runs while this browser tab is open. Live Zerodha orders remain disabled.</div>
       </div>
     </div>
   );
