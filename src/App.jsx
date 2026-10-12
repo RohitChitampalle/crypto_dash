@@ -2446,13 +2446,20 @@ function StrategyMaker({ theme, onLogout, setTheme }) {
             <div style={{ marginTop: 24, paddingTop: 20, borderTop: `1px solid ${border}` }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}><h3 style={{ margin: 0, fontSize: 15 }}>Rule builder</h3><div style={{ display: "flex", gap: 8 }}><button style={button()} onClick={() => addRule("Entry")}>+ Entry rule</button><button style={button()} onClick={() => addRule("Exit")}>+ Exit rule</button></div></div>
               <p style={{ margin: "0 0 14px", color: muted, fontSize: 12 }}>Choose indicators and conditions. Loading a saved strategy activates a paper-only monitor; no Zerodha live order is sent.</p>
-              {rules.map((rule, index) => <div key={rule.id} style={{ display: "grid", gridTemplateColumns: "80px minmax(110px, 1fr) minmax(115px, 1fr) minmax(100px, 1fr) 34px", gap: 8, alignItems: "end", padding: 12, border: `1px solid ${border}`, borderRadius: 12, marginBottom: 9 }}>
-                <div style={{ color: rule.group === "Entry" ? "#16a34a" : "#d97706", fontSize: 11, fontWeight: 850, paddingBottom: 12 }}>{rule.group.toUpperCase()} {index + 1}</div>
-                <label style={label}>Indicator<select style={field} value={rule.indicator} onChange={e => updateRule(rule.id, "indicator", e.target.value)}>{["EMA 9", "EMA 20", "SMA 50", "RSI 14", "MACD", "Signal Line", "Bollinger Bands", "ATR", "VWAP", "Volume", "Price"].map(x => <option key={x}>{x}</option>)}</select></label>
-                <label style={label}>Condition<select style={field} value={rule.operator} onChange={e => updateRule(rule.id, "operator", e.target.value)}>{["is above", "is below", "crosses above", "crosses below", "equals", "increases", "decreases"].map(x => <option key={x}>{x}</option>)}</select></label>
-                <label style={label}>Compare with<input style={field} value={rule.target} onChange={e => updateRule(rule.id, "target", e.target.value)} placeholder="e.g. EMA 20 / 30" /></label>
-                <button aria-label="Remove rule" title="Remove rule" onClick={() => setRules(prev => prev.filter(r => r.id !== rule.id))} style={{ ...button(), color: "#ef4444", padding: "10px 8px" }}>×</button>
-              </div>)}
+              {rules.map((rule, index) => {
+                const periodMatch = String(rule.indicator || "").match(/^(EMA|SMA|RSI|ATR)\s+(\d+)$/i);
+                const editablePeriod = Boolean(periodMatch);
+                const indicatorOptions = ["EMA 9", "EMA 20", "SMA 50", "RSI 14", "MACD", "Signal Line", "Bollinger Bands", "ATR 14", "VWAP", "Volume", "Price"];
+                return <div key={rule.id} style={{ display: "grid", gridTemplateColumns: "75px minmax(120px, 1.2fr) 76px minmax(115px, 1fr) minmax(105px, 1fr) 34px", gap: 8, alignItems: "end", padding: 12, border: `1px solid ${border}`, borderRadius: 12, marginBottom: 9 }}>
+                  <div style={{ color: rule.group === "Entry" ? "#16a34a" : "#d97706", fontSize: 11, fontWeight: 850, paddingBottom: 12 }}>{rule.group.toUpperCase()} {index + 1}</div>
+                  <label style={label}>Indicator (type or choose)<input style={field} type="text" list="strategy-indicator-options" value={rule.indicator} onChange={e => updateRule(rule.id, "indicator", e.target.value)} placeholder="e.g. EMA 21, RSI 7" autoComplete="off" /></label>
+                  <label style={label}>Period<input style={{ ...field, opacity: editablePeriod ? 1 : 0.5 }} type="number" min="1" max="200" step="1" disabled={!editablePeriod} value={editablePeriod ? periodMatch[2] : "—"} title={editablePeriod ? `Edit ${periodMatch[1]} period` : "Select EMA, SMA, RSI, or ATR to edit its period"} onChange={e => { const n = Math.max(1, Math.min(200, Number(e.target.value) || 1)); updateRule(rule.id, "indicator", `${periodMatch[1].toUpperCase()} ${n}`); }} /></label>
+                  <label style={label}>Condition<select style={field} value={rule.operator} onChange={e => updateRule(rule.id, "operator", e.target.value)}>{["is above", "is below", "crosses above", "crosses below", "equals", "increases", "decreases"].map(x => <option key={x}>{x}</option>)}</select></label>
+                  <label style={label}>Compare with<input style={field} value={rule.target} onChange={e => updateRule(rule.id, "target", e.target.value)} placeholder="e.g. EMA 20 / 30" /></label>
+                  <button aria-label="Remove rule" title="Remove rule" onClick={() => setRules(prev => prev.filter(r => r.id !== rule.id))} style={{ ...button(), color: "#ef4444", padding: "10px 8px" }}>×</button>
+                </div>;
+              })}
+              <datalist id="strategy-indicator-options">{["EMA 9", "EMA 20", "SMA 50", "RSI 14", "MACD", "Signal Line", "Bollinger Bands", "ATR 14", "VWAP", "Volume", "Price"].map(x => <option key={x} value={x} />)}</datalist>
               {!rules.length && <div style={{ border: `1px dashed ${border}`, borderRadius: 12, padding: 22, color: muted, textAlign: "center" }}>No rules yet. Add an entry or exit rule.</div>}
             </div>
             <label style={{ ...label, marginTop: 18 }}>Your idea / notes<textarea style={{ ...field, minHeight: 90, resize: "vertical" }} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Example: Enter long after EMA 9 crosses above EMA 20 and RSI confirms momentum. Exit at target or stop-loss." /></label>
