@@ -2645,6 +2645,124 @@ function MarketSidebarStyles() {
    MARKET ALGO SIDEBAR
 ========================================================= */
 
+/* =========================================================
+   MARKET STRUCTURE DASHBOARD
+   UI foundation: real OHLC/structure values are populated only
+   after the backend API is connected. No sample trading values.
+========================================================= */
+
+function MarketStructureDashboard({ onLogout, theme, setTheme }) {
+  const [symbol, setSymbol] = useState("ETHUSD");
+  const [timeframe, setTimeframe] = useState("15m");
+  const isNight = theme === "night";
+
+  const palette = {
+    bg: isNight ? "#02040a" : "#f6f8fb",
+    card: isNight ? "#080d18" : "#ffffff",
+    border: isNight ? "#172235" : "#e2e8f0",
+    text: isNight ? "#e8eef7" : "#0f172a",
+    muted: isNight ? "#718096" : "#64748b",
+    accent: isNight ? "#60a5fa" : "#0284c7",
+    green: isNight ? "#22c55e" : "#16a34a",
+    red: isNight ? "#f87171" : "#dc2626",
+    yellow: isNight ? "#fbbf24" : "#d97706",
+    purple: isNight ? "#a78bfa" : "#7c3aed",
+    input: isNight ? "#030711" : "#f8fafc",
+  };
+
+  const card = {
+    background: palette.card,
+    border: `1px solid ${palette.border}`,
+    borderRadius: 14,
+    padding: 18,
+    minWidth: 0,
+  };
+  const muted = { color: palette.muted, fontSize: 12 };
+  const heading = { color: palette.text, fontSize: 15, fontWeight: 800, marginBottom: 14 };
+  const select = {
+    background: palette.input,
+    color: palette.text,
+    border: `1px solid ${palette.border}`,
+    borderRadius: 9,
+    padding: "9px 12px",
+    outline: "none",
+  };
+  const metrics = [
+    ["Market Bias", "Waiting for data", palette.accent],
+    ["Current Structure", "--", palette.purple],
+    ["Last BOS", "--", palette.green],
+    ["Last CHoCH", "--", palette.yellow],
+  ];
+  const timeframes = ["4H", "1H", "15M", "5M"];
+
+  const rows = (items) => items.map(([label, value, color]) => (
+    <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "12px 0", borderBottom: `1px solid ${palette.border}` }}>
+      <span style={muted}>{label}</span>
+      <strong style={{ color: color || palette.text, fontSize: 12 }}>{value}</strong>
+    </div>
+  ));
+
+  return (
+    <div style={{ minHeight: "100vh", padding: 24, background: palette.bg, color: palette.text, boxSizing: "border-box" }}>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: 22 }}>
+        <div>
+          <div style={{ color: palette.accent, fontSize: 11, fontWeight: 800, letterSpacing: 1.5 }}>DELTA EXCHANGE / MARKET ANALYTICS</div>
+          <h1 style={{ fontSize: 26, fontWeight: 900, margin: "7px 0" }}>Market Structure</h1>
+          <div style={muted}>Smart money concepts · Price action · Multi-timeframe analysis</div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <ThemeSwitcher theme={theme} setTheme={setTheme} />
+          <button type="button" onClick={onLogout} style={{ ...select, cursor: "pointer" }}>Logout</button>
+        </div>
+      </header>
+
+      <section style={{ ...card, display: "flex", alignItems: "end", gap: 14, flexWrap: "wrap", marginBottom: 16 }}>
+        <label style={{ display: "grid", gap: 6, color: palette.muted, fontSize: 12 }}>Trading Pair
+          <select value={symbol} onChange={(e) => setSymbol(e.target.value)} style={select}>
+            <option value="ETHUSD">ETHUSD</option><option value="BTCUSD">BTCUSD</option><option value="SOLUSD">SOLUSD</option>
+          </select>
+        </label>
+        <label style={{ display: "grid", gap: 6, color: palette.muted, fontSize: 12 }}>Analysis Timeframe
+          <select value={timeframe} onChange={(e) => setTimeframe(e.target.value)} style={select}>
+            {["5m", "15m", "30m", "1h", "4h", "1d"].map((tf) => <option key={tf} value={tf}>{tf}</option>)}
+          </select>
+        </label>
+        <div style={{ marginLeft: "auto", ...muted }}>Data status: <strong style={{ color: palette.yellow }}>Waiting for OHLC feed</strong></div>
+      </section>
+
+      <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 14, marginBottom: 16 }}>
+        {metrics.map(([label, value, color]) => (
+          <div key={label} style={card}><div style={muted}>{label}</div><div style={{ color, fontSize: 19, fontWeight: 900, marginTop: 12 }}>{value}</div></div>
+        ))}
+      </section>
+
+      <section style={{ ...card, marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <div><div style={heading}>{symbol} · {timeframe} Chart</div><div style={muted}>Candlesticks · Volume · Swing points · BOS / CHoCH</div></div>
+          <span style={{ ...muted, color: palette.yellow }}>OHLC data not connected</span>
+        </div>
+        <div style={{ height: 340, marginTop: 18, border: `1px dashed ${palette.border}`, borderRadius: 12, background: isNight ? "#050812" : "#f8fafc", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: 20, gap: 10 }}>
+          <div style={{ fontSize: 34 }}>📊</div><strong>Waiting for OHLC candle data</strong>
+          <div style={{ ...muted, maxWidth: 440, lineHeight: 1.7 }}>Connect the Delta Exchange candle API to render real candlesticks, volume, swing highs/lows, BOS, CHoCH and support/resistance levels.</div>
+        </div>
+      </section>
+
+      <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 16, marginBottom: 16 }}>
+        <div style={card}><div style={heading}>Swing Structure</div>{rows([["Higher High (HH)", "--", palette.green],["Higher Low (HL)", "--", palette.green],["Lower High (LH)", "--", palette.red],["Lower Low (LL)", "--", palette.red]])}</div>
+        <div style={card}><div style={heading}>Multi-Timeframe Analysis</div>{rows(timeframes.map((tf) => [tf, "Waiting for data", palette.yellow]))}</div>
+        <div style={card}><div style={heading}>Structure Events</div>{rows([["Break of Structure (BOS)", "--", palette.green],["Change of Character (CHoCH)", "--", palette.yellow],["Liquidity Sweep", "--", palette.purple],["Support / Resistance", "--", palette.accent]])}</div>
+      </section>
+
+      <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 16 }}>
+        <div style={card}><div style={heading}>Recent Signals</div><div style={{ ...muted, lineHeight: 1.7 }}>No signals available. Connect the market structure analysis API.</div></div>
+        <div style={card}><div style={heading}>Backtesting</div>{rows([["Total Trades", "--"],["Win Rate", "--"],["Profit Factor", "--"],["Net P&L", "--"]])}</div>
+        <div style={card}><div style={heading}>Key Insights</div><div style={{ ...muted, lineHeight: 1.8 }}>Market structure insights will appear here after candle data and the analysis algorithm are connected.</div></div>
+      </section>
+      <footer style={{ ...muted, textAlign: "center", padding: 18 }}>Market Structure Dashboard · {symbol} · {timeframe} · Values remain blank until real market data is connected.</footer>
+    </div>
+  );
+}
+
 const MARKET_ALGOS = [
   {
     id: "crypto",
@@ -2660,6 +2778,11 @@ const MARKET_ALGOS = [
     id: "strategy",
     label: "Strategy Maker",
     icon: "⚙",
+  },
+  {
+    id: "market-structure",
+    label: "Market Structure",
+    icon: "📊",
   },
 ];
 
@@ -3572,8 +3695,20 @@ export default function App() {
             theme={theme}
             setTheme={setTheme}
           />
-        ) : (
+        ) : selectedMarket === "strategy" ? (
           <StrategyMaker
+            onLogout={handleLogout}
+            theme={theme}
+            setTheme={setTheme}
+          />
+        ) : selectedMarket === "market-structure" ? (
+          <MarketStructureDashboard
+            onLogout={handleLogout}
+            theme={theme}
+            setTheme={setTheme}
+          />
+        ) : (
+          <Dashboard
             onLogout={handleLogout}
             theme={theme}
             setTheme={setTheme}
