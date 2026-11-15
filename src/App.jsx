@@ -2654,7 +2654,17 @@ function MarketSidebarStyles() {
 function MarketStructureDashboard({ onLogout, theme, setTheme }) {
   const [symbol, setSymbol] = useState("ETHUSD");
   const [timeframe, setTimeframe] = useState("15m");
+  const [summary, setSummary] = useState(null);
+  const [detail, setDetail] = useState(null);
+  const [reportStatus, setReportStatus] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState("");
+  const marketChartContainerRef = useRef(null);
   const isNight = theme === "night";
+
+  const API_BASE_URL = API_BASE;
+  const allowedTimeframes = ["5m", "15m", "1h", "4h"];
 
   const palette = {
     bg: isNight ? "#02040a" : "#f6f8fb",
@@ -2679,7 +2689,7 @@ function MarketStructureDashboard({ onLogout, theme, setTheme }) {
   };
   const muted = { color: palette.muted, fontSize: 12 };
   const heading = { color: palette.text, fontSize: 15, fontWeight: 800, marginBottom: 14 };
-  const select = {
+  const selectStyle = {
     background: palette.input,
     color: palette.text,
     border: `1px solid ${palette.border}`,
@@ -2687,20 +2697,207 @@ function MarketStructureDashboard({ onLogout, theme, setTheme }) {
     padding: "9px 12px",
     outline: "none",
   };
-  const metrics = [
-    ["Market Bias", "Waiting for data", palette.accent],
-    ["Current Structure", "--", palette.purple],
-    ["Last BOS", "--", palette.green],
-    ["Last CHoCH", "--", palette.yellow],
-  ];
-  const timeframes = ["4H", "1H", "15M", "5M"];
+
+  const unwrap = (payload) => payload?.data ?? payload ?? {};
+  const asArray = (value) => Array.isArray(value) ? value : [];
+  const firstDefined = (...values) => values.find((value) => value !== undefined && value !== null && value !== "");
+  const read = (object, ...keys) => {
+    for (const key of keys) {
+      const value = object?.[key];
+      if (value !== undefined && value !== null && value !== "") return value;
+    }
+    return null;
+  };
+  const display = (value) => {
+    if (value === null || value === undefined || value === "") return "--";
+    if (typeof value === "object") return JSON.stringify(value);
+    return String(value);
+  };
+  const prettyTime = (value) => {
+    if (!value) return "--";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString();
+  };
+
+  const fetchMarketStructure = async ({ quiet = false } = {}) => {
+    if (quiet) setRefreshing(true);
+    else setLoading(true);
+    setError("");
+
+    try {
+      const [summaryResponse, detailResponse, statusResponse] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/market-structure/report`, { cache: "no-store" }),
+        fetch(`${API_BASE_URL}/api/market-structure/timeframe/${timeframe}`, { cache: "no-store" }),
+        fetch(`${API_BASE_URL}/api/market-structure/status`, { cache: "no-store" }),
+      ]);
+
+      const [summaryPayload, detailPayload, statusPayload] = await Promise.all([
+        summaryResponse.json(),
+        detailResponse.json(),
+        statusResponse.json(),
+      ]);
+
+      if (!summaryResponse.ok || summaryPayload?.success === false) {
+        throw new Error(summaryPayload?.message || summaryPayload?.error || `Summary API failed (${summaryResponse.status})`);
+      }
+      if (!detailResponse.ok || detailPayload?.success === false) {
+        throw new Error(detailPayload?.message || detailPayload?.error || `Timeframe API failed (${detailResponse.status})`);
+      }
+      if (!statusResponse.ok || statusPayload?.success === false) {
+        throw new Error(statusPayload?.message || statusPayload?.error || `Status API failed (${statusResponse.status})`);
+      }
+
+      setSummary(unwrap(summaryPayload));
+      setDetail(unwrap(detailPayload));
+      setReportStatus(unwrap(statusPayload));
+    } catch (fetchError) {
+      setError(fetchError?.message || "Unable to load Market Structure reports.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMarketStructure();
+    // Refresh when the selected timeframe changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeframe]);
+
+  const swings = asArray(detail?.swings ?? detail?.structure?.swings);
+  const events = asArray(detail?.events ?? detail?.structure?.events);
+  const candleStates = asArray(detail?.candle_states ?? detail?.candles ?? detail?.data);
+  const timeframeSummary =
+    summary?.timeframes?.[timeframe] ??
+    summary?.[timeframe] ??
+    summary?.summary?.[timeframe] ??
+    {};
+
+  const latestSwing = swings.length ? swings[swings.length - 1] : null;
+  const latestEvent = events.length ? events[events.length - 1] : null;
+  const latestClose = candleStates.length
+    ? read(candleStates[candleStates.length - 1], "close", "Close", "price")
+    : null;
+
+  const bias = read(timeframeSummary, "bias", "trend", "market_bias", "direction") ??
+    read(detail, "bias", "trend", "market_bias", "direction") ?? "Waiting for report";
+  const currentStructure = read(timeframeSummary, "current_structure", "structure", "market_structure") ??
+    read(latestSwing, "type", "label", "swing_type") ?? "--";
+  const lastBos = [...events].reverse().find((event) => String(read(event, "type", "event", "name") || "").toUpperCase().includes("BOS"));
+  const lastChoch = [...events].reverse().find((event) => String(read(event, "type", "event", "name") || "").toUpperCase().includes("CHOCH"));
+  const reportFiles = reportStatus?.reports || {};
+  const statusForTimeframe = reportFiles[`structure_${timeframe}.json`];
+  const updatedAt = statusForTimeframe?.last_modified;
 
   const rows = (items) => items.map(([label, value, color]) => (
     <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "12px 0", borderBottom: `1px solid ${palette.border}` }}>
       <span style={muted}>{label}</span>
-      <strong style={{ color: color || palette.text, fontSize: 12 }}>{value}</strong>
+      <strong style={{ color: color || palette.text, fontSize: 12, textAlign: "right", overflowWrap: "anywhere" }}>{display(value)}</strong>
     </div>
   ));
+
+  const tableStyle = { width: "100%", borderCollapse: "collapse", fontSize: 12 };
+  const thStyle = { color: palette.muted, textAlign: "left", padding: "10px 8px", borderBottom: `1px solid ${palette.border}`, whiteSpace: "nowrap" };
+  const tdStyle = { color: palette.text, padding: "10px 8px", borderBottom: `1px solid ${palette.border}`, verticalAlign: "top" };
+  const getEventName = (item) => read(item, "type", "event", "name", "event_type") || "Structure event";
+  const getTimestamp = (item) => read(item, "timestamp", "time", "datetime", "date", "candle_time");
+  const getPrice = (item) => read(item, "price", "level", "break_price", "close");
+  const getSwingType = (item) => read(item, "type", "label", "swing_type", "kind") || "--";
+
+  useEffect(() => {
+    const container = marketChartContainerRef.current;
+    if (!container) return;
+
+    const normalized = candleStates.map((candle) => {
+      const rawTime = read(candle, "time", "timestamp", "datetime", "date", "start_time");
+      let time = null;
+      if (typeof rawTime === "number") {
+        time = Math.floor(rawTime > 100000000000 ? rawTime / 1000 : rawTime);
+      } else if (rawTime) {
+        const parsed = Date.parse(String(rawTime));
+        if (Number.isFinite(parsed)) time = Math.floor(parsed / 1000);
+      }
+      const open = Number(read(candle, "open", "Open"));
+      const high = Number(read(candle, "high", "High"));
+      const low = Number(read(candle, "low", "Low"));
+      const close = Number(read(candle, "close", "Close"));
+      const volume = Number(read(candle, "volume", "Volume") || 0);
+      return { time, open, high, low, close, volume };
+    }).filter((c) => c.time && [c.open, c.high, c.low, c.close].every(Number.isFinite) && c.high >= c.low)
+      .sort((a, b) => a.time - b.time)
+      .filter((c, index, list) => index === 0 || c.time !== list[index - 1].time);
+
+    if (!normalized.length) {
+      container.innerHTML = "";
+      return;
+    }
+
+    let chart;
+    try {
+      container.innerHTML = "";
+      chart = createChart(container, {
+        width: Math.max(container.clientWidth || 320, 320),
+        height: 360,
+        layout: {
+          background: { type: ColorType.Solid, color: palette.card },
+          textColor: palette.text,
+        },
+        grid: {
+          vertLines: { color: palette.border },
+          horzLines: { color: palette.border },
+        },
+        rightPriceScale: { borderColor: palette.border },
+        timeScale: { borderColor: palette.border, timeVisible: true, secondsVisible: false },
+      });
+      const candleSeries = chart.addSeries(CandlestickSeries, {
+        upColor: "#16a34a",
+        downColor: "#dc2626",
+        borderUpColor: "#16a34a",
+        borderDownColor: "#dc2626",
+        wickUpColor: "#16a34a",
+        wickDownColor: "#dc2626",
+      });
+      candleSeries.setData(normalized.map(({ time, open, high, low, close }) => ({ time, open, high, low, close })));
+
+      const volumeSeries = chart.addSeries(HistogramSeries, {
+        priceFormat: { type: "volume" },
+        priceScaleId: "",
+        lastValueVisible: false,
+        priceLineVisible: false,
+      });
+      volumeSeries.priceScale().applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+      volumeSeries.setData(normalized.map((c) => ({
+        time: c.time,
+        value: Math.max(0, c.volume),
+        color: c.close >= c.open ? "rgba(22,163,74,.35)" : "rgba(220,38,38,.35)",
+      })));
+      chart.timeScale().fitContent();
+
+      const resizeObserver = new ResizeObserver(() => {
+        if (container && chart) chart.applyOptions({ width: Math.max(container.clientWidth || 320, 320) });
+      });
+      resizeObserver.observe(container);
+      marketChartContainerRef.current.__resizeObserver = resizeObserver;
+    } catch (chartError) {
+      console.error("Market Structure chart error:", chartError);
+      container.innerHTML = "";
+    }
+
+    return () => {
+      if (marketChartContainerRef.current?.__resizeObserver) {
+        marketChartContainerRef.current.__resizeObserver.disconnect();
+        delete marketChartContainerRef.current.__resizeObserver;
+      }
+      if (chart) {
+        try { chart.remove(); } catch (_) {}
+      }
+    };
+  }, [candleStates, isNight, palette.card, palette.text, palette.border]);
+
+  const hasChartCandles = candleStates.some((candle) =>
+    read(candle, "time", "timestamp", "datetime", "date", "start_time") &&
+    ["open", "high", "low", "close"].every((key) => read(candle, key, key[0].toUpperCase() + key.slice(1)) !== null)
+  );
 
   return (
     <div style={{ minHeight: "100vh", padding: 24, background: palette.bg, color: palette.text, boxSizing: "border-box" }}>
@@ -2708,57 +2905,171 @@ function MarketStructureDashboard({ onLogout, theme, setTheme }) {
         <div>
           <div style={{ color: palette.accent, fontSize: 11, fontWeight: 800, letterSpacing: 1.5 }}>DELTA EXCHANGE / MARKET ANALYTICS</div>
           <h1 style={{ fontSize: 26, fontWeight: 900, margin: "7px 0" }}>Market Structure</h1>
-          <div style={muted}>Smart money concepts · Price action · Multi-timeframe analysis</div>
+          <div style={muted}>ETHUSD · Smart money concepts · Price action · Multi-timeframe analysis</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <ThemeSwitcher theme={theme} setTheme={setTheme} />
-          <button type="button" onClick={onLogout} style={{ ...select, cursor: "pointer" }}>Logout</button>
+          <button type="button" onClick={() => fetchMarketStructure({ quiet: true })} disabled={refreshing} style={{ ...selectStyle, cursor: "pointer", opacity: refreshing ? 0.6 : 1 }}>
+            {refreshing ? "Refreshing..." : "↻ Refresh"}
+          </button>
+          <button type="button" onClick={onLogout} style={{ ...selectStyle, cursor: "pointer" }}>Logout</button>
         </div>
       </header>
 
       <section style={{ ...card, display: "flex", alignItems: "end", gap: 14, flexWrap: "wrap", marginBottom: 16 }}>
         <label style={{ display: "grid", gap: 6, color: palette.muted, fontSize: 12 }}>Trading Pair
-          <select value={symbol} onChange={(e) => setSymbol(e.target.value)} style={select}>
-            <option value="ETHUSD">ETHUSD</option><option value="BTCUSD">BTCUSD</option><option value="SOLUSD">SOLUSD</option>
+          <select value={symbol} onChange={(e) => setSymbol(e.target.value)} style={selectStyle}>
+            <option value="ETHUSD">ETHUSD</option>
           </select>
         </label>
         <label style={{ display: "grid", gap: 6, color: palette.muted, fontSize: 12 }}>Analysis Timeframe
-          <select value={timeframe} onChange={(e) => setTimeframe(e.target.value)} style={select}>
-            {["5m", "15m", "30m", "1h", "4h", "1d"].map((tf) => <option key={tf} value={tf}>{tf}</option>)}
+          <select value={timeframe} onChange={(e) => setTimeframe(e.target.value)} style={selectStyle}>
+            {allowedTimeframes.map((tf) => <option key={tf} value={tf}>{tf.toUpperCase()}</option>)}
           </select>
         </label>
-        <div style={{ marginLeft: "auto", ...muted }}>Data status: <strong style={{ color: palette.yellow }}>Waiting for OHLC feed</strong></div>
+        <div style={{ marginLeft: "auto", ...muted }}>
+          API status: <strong style={{ color: error ? palette.red : detail ? palette.green : palette.yellow }}>{error ? "Error" : loading ? "Loading" : "Connected"}</strong>
+          {updatedAt && <div style={{ marginTop: 5 }}>Report updated: {prettyTime(updatedAt)}</div>}
+        </div>
       </section>
 
+      {error && (
+        <div role="alert" style={{ ...card, borderColor: palette.red, color: palette.red, marginBottom: 16 }}>
+          <strong>Market Structure API error</strong>
+          <div style={{ marginTop: 6, fontSize: 13 }}>{error}</div>
+          <div style={{ ...muted, marginTop: 8 }}>Check that the Flask container is running and the report JSON files exist in its mounted report directory.</div>
+        </div>
+      )}
+
       <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 14, marginBottom: 16 }}>
-        {metrics.map(([label, value, color]) => (
-          <div key={label} style={card}><div style={muted}>{label}</div><div style={{ color, fontSize: 19, fontWeight: 900, marginTop: 12 }}>{value}</div></div>
+        {[
+          ["Market Bias", bias, palette.accent],
+          ["Current Structure", currentStructure, palette.purple],
+          ["Last BOS", lastBos ? getPrice(lastBos) ?? getEventName(lastBos) : "--", palette.green],
+          ["Last CHoCH", lastChoch ? getPrice(lastChoch) ?? getEventName(lastChoch) : "--", palette.yellow],
+        ].map(([label, value, color]) => (
+          <div key={label} style={card}>
+            <div style={muted}>{label}</div>
+            <div style={{ color, fontSize: 19, fontWeight: 900, marginTop: 12, overflowWrap: "anywhere" }}>{loading ? "Loading..." : display(value)}</div>
+          </div>
         ))}
       </section>
 
       <section style={{ ...card, marginBottom: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-          <div><div style={heading}>{symbol} · {timeframe} Chart</div><div style={muted}>Candlesticks · Volume · Swing points · BOS / CHoCH</div></div>
-          <span style={{ ...muted, color: palette.yellow }}>OHLC data not connected</span>
+          <div>
+            <div style={heading}>{symbol} · {timeframe.toUpperCase()} Report</div>
+            <div style={muted}>Loaded from /api/market-structure/timeframe/{timeframe}</div>
+          </div>
+          <span style={{ ...muted, color: detail ? palette.green : palette.yellow }}>{detail ? `${candleStates.length.toLocaleString()} candle states` : "Waiting for report"}</span>
         </div>
-        <div style={{ height: 340, marginTop: 18, border: `1px dashed ${palette.border}`, borderRadius: 12, background: isNight ? "#050812" : "#f8fafc", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: 20, gap: 10 }}>
-          <div style={{ fontSize: 34 }}>📊</div><strong>Waiting for OHLC candle data</strong>
-          <div style={{ ...muted, maxWidth: 440, lineHeight: 1.7 }}>Connect the Delta Exchange candle API to render real candlesticks, volume, swing highs/lows, BOS, CHoCH and support/resistance levels.</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12, marginTop: 14 }}>
+          {[
+            ["Candles / States", candleStates.length],
+            ["Confirmed Swings", swings.length],
+            ["Structure Events", events.length],
+            ["Latest Close", latestClose],
+          ].map(([label, value]) => (
+            <div key={label} style={{ background: palette.input, border: `1px solid ${palette.border}`, borderRadius: 10, padding: 13 }}>
+              <div style={muted}>{label}</div>
+              <strong style={{ display: "block", color: palette.text, fontSize: 16, marginTop: 8 }}>{display(value)}</strong>
+            </div>
+          ))}
         </div>
+      </section>
+
+      <section style={{ ...card, marginBottom: 16 }}>
+        <div style={heading}>{symbol} · {timeframe.toUpperCase()} OHLC Chart</div>
+        {hasChartCandles ? (
+          <div ref={marketChartContainerRef} style={{ width: "100%", height: 360 }} />
+        ) : (
+          <div style={{ minHeight: 180, display: "grid", placeItems: "center", textAlign: "center", color: palette.muted, border: `1px dashed ${palette.border}`, borderRadius: 10, padding: 20 }}>
+            {loading ? "Loading candle data..." : "This report does not contain timestamped OHLC fields for chart rendering. Swing and event data are still available below."}
+          </div>
+        )}
       </section>
 
       <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 16, marginBottom: 16 }}>
-        <div style={card}><div style={heading}>Swing Structure</div>{rows([["Higher High (HH)", "--", palette.green],["Higher Low (HL)", "--", palette.green],["Lower High (LH)", "--", palette.red],["Lower Low (LL)", "--", palette.red]])}</div>
-        <div style={card}><div style={heading}>Multi-Timeframe Analysis</div>{rows(timeframes.map((tf) => [tf, "Waiting for data", palette.yellow]))}</div>
-        <div style={card}><div style={heading}>Structure Events</div>{rows([["Break of Structure (BOS)", "--", palette.green],["Change of Character (CHoCH)", "--", palette.yellow],["Liquidity Sweep", "--", palette.purple],["Support / Resistance", "--", palette.accent]])}</div>
+        <div style={card}>
+          <div style={heading}>Swing Structure</div>
+          {rows([
+            ["Latest swing", latestSwing ? getSwingType(latestSwing) : "--", palette.purple],
+            ["Latest swing price", latestSwing ? getPrice(latestSwing) : "--", palette.text],
+            ["Latest swing time", latestSwing ? prettyTime(getTimestamp(latestSwing)) : "--", palette.text],
+            ["Total confirmed swings", swings.length, palette.accent],
+          ])}
+        </div>
+        <div style={card}>
+          <div style={heading}>Multi-Timeframe Reports</div>
+          {rows(allowedTimeframes.map((tf) => {
+            const file = reportFiles[`structure_${tf}.json`];
+            return [tf.toUpperCase(), file?.available ? "Available" : "Not found", file?.available ? palette.green : palette.yellow];
+          }))}
+        </div>
+        <div style={card}>
+          <div style={heading}>Latest Structure Events</div>
+          {rows([
+            ["Latest event", latestEvent ? getEventName(latestEvent) : "--", palette.accent],
+            ["Latest event price", latestEvent ? getPrice(latestEvent) : "--", palette.text],
+            ["Latest event time", latestEvent ? prettyTime(getTimestamp(latestEvent)) : "--", palette.text],
+            ["BOS events", events.filter((event) => getEventName(event).toUpperCase().includes("BOS")).length, palette.green],
+            ["CHoCH events", events.filter((event) => getEventName(event).toUpperCase().includes("CHOCH")).length, palette.yellow],
+          ])}
+        </div>
       </section>
 
-      <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 16 }}>
-        <div style={card}><div style={heading}>Recent Signals</div><div style={{ ...muted, lineHeight: 1.7 }}>No signals available. Connect the market structure analysis API.</div></div>
-        <div style={card}><div style={heading}>Backtesting</div>{rows([["Total Trades", "--"],["Win Rate", "--"],["Profit Factor", "--"],["Net P&L", "--"]])}</div>
-        <div style={card}><div style={heading}>Key Insights</div><div style={{ ...muted, lineHeight: 1.8 }}>Market structure insights will appear here after candle data and the analysis algorithm are connected.</div></div>
+      <section style={{ ...card, marginBottom: 16, overflowX: "auto" }}>
+        <div style={heading}>Recent Structure Events</div>
+        {events.length ? (
+          <table style={tableStyle}>
+            <thead><tr><th style={thStyle}>Event</th><th style={thStyle}>Time</th><th style={thStyle}>Price / Level</th><th style={thStyle}>Details</th></tr></thead>
+            <tbody>
+              {[...events].slice(-25).reverse().map((event, index) => (
+                <tr key={event.id ?? `${getEventName(event)}-${index}`}>
+                  <td style={tdStyle}><strong>{getEventName(event)}</strong></td>
+                  <td style={tdStyle}>{prettyTime(getTimestamp(event))}</td>
+                  <td style={tdStyle}>{display(getPrice(event))}</td>
+                  <td style={tdStyle}>{display(read(event, "description", "reason", "direction", "level_type") ?? "--")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : <div style={muted}>{loading ? "Loading events..." : "No structure events in this report."}</div>}
       </section>
-      <footer style={{ ...muted, textAlign: "center", padding: 18 }}>Market Structure Dashboard · {symbol} · {timeframe} · Values remain blank until real market data is connected.</footer>
+
+      <section style={{ ...card, marginBottom: 16, overflowX: "auto" }}>
+        <div style={heading}>Recent Swing Points</div>
+        {swings.length ? (
+          <table style={tableStyle}>
+            <thead><tr><th style={thStyle}>Swing</th><th style={thStyle}>Time</th><th style={thStyle}>Price</th><th style={thStyle}>Index</th></tr></thead>
+            <tbody>
+              {[...swings].slice(-25).reverse().map((swing, index) => (
+                <tr key={swing.id ?? `${getSwingType(swing)}-${index}`}>
+                  <td style={tdStyle}><strong>{getSwingType(swing)}</strong></td>
+                  <td style={tdStyle}>{prettyTime(getTimestamp(swing))}</td>
+                  <td style={tdStyle}>{display(getPrice(swing))}</td>
+                  <td style={tdStyle}>{display(read(swing, "index", "candle_index", "position"))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : <div style={muted}>{loading ? "Loading swings..." : "No swing points in this report."}</div>}
+      </section>
+
+      <section style={{ ...card, marginBottom: 16 }}>
+        <div style={heading}>Report Summary</div>
+        {timeframeSummary && Object.keys(timeframeSummary).length ? (
+          <pre style={{ margin: 0, padding: 14, borderRadius: 10, background: palette.input, color: palette.text, fontSize: 12, lineHeight: 1.6, overflowX: "auto", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+            {JSON.stringify(timeframeSummary, null, 2)}
+          </pre>
+        ) : (
+          <div style={muted}>The selected timeframe summary will appear here when present in market_structure_report.json.</div>
+        )}
+      </section>
+
+      <footer style={{ ...muted, textAlign: "center", padding: 18 }}>
+        Market Structure Dashboard · {symbol} · {timeframe} · {summary ? "Summary API connected" : "Waiting for summary"} · {detail ? "Detail API connected" : "Waiting for detail"}
+      </footer>
     </div>
   );
 }
